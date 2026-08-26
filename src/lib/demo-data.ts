@@ -12,9 +12,7 @@ const categorySeed = [
   ["night-tshirts", "Night T-shirts", "ನೈಟ್ ಟಿ-ಶರ್ಟ್", "👕"],
   ["half-collar", "Half-collar shirts", "ಅರ್ಧ ತೋಳಿನ ಕಾಲರ್ ಶರ್ಟ್", "🧥"],
   ["full-collar", "Full-collar shirts", "ಉದ್ದ ತೋಳಿನ ಕಾಲರ್ ಶರ್ಟ್", "👔"],
-  ["kids-festive", "Kids festive wear", "ಮಕ್ಕಳ ಹಬ್ಬದ ಉಡುಪು", "✨"],
   ["dhotis", "Dhotis", "ಪಂಚೆಗಳು", "🤍"],
-  ["leggings", "Leggings", "ಲೆಗ್ಗಿಂಗ್ಸ್", "🎨"],
   ["innerwear", "Innerwear", "ಒಳ ಉಡುಪು", "☁️"],
 ] as const;
 

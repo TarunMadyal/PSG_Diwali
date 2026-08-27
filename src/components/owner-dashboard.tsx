@@ -1596,7 +1596,7 @@ export function OwnerDashboard() {
       )}
 
       {/* ========================================================= */}
-      {/* MOBILE BOTTOM NAVIGATION BAR (Sticky) */}
+      {/* MOBILE BOTTOM NAVIGATION BAR (Sticky, Thumb-Friendly) */}
       {/* ========================================================= */}
       <div
         style={{
@@ -1604,13 +1604,14 @@ export function OwnerDashboard() {
           bottom: 0,
           left: 0,
           right: 0,
-          zIndex: 40,
-          background: "#fff",
+          zIndex: 50,
+          background: "rgba(255, 255, 255, 0.98)",
+          backdropFilter: "blur(12px)",
           borderTop: "1px solid #ded9d4",
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
-          padding: "6px 4px calc(6px + env(safe-area-inset-bottom, 0px))",
-          boxShadow: "0 -4px 16px rgba(0,0,0,0.06)",
+          padding: "6px 6px calc(10px + env(safe-area-inset-bottom, 0px))",
+          boxShadow: "0 -4px 20px rgba(0,0,0,0.08)",
         }}
       >
         <button
@@ -1622,16 +1623,25 @@ export function OwnerDashboard() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 3,
-            padding: "6px 2px",
+            gap: 4,
+            padding: "6px 4px",
             color: activeTab === "upload" ? "var(--wine)" : "#746b64",
-            fontWeight: activeTab === "upload" ? 900 : 600,
-            fontSize: "0.74rem",
+            fontWeight: activeTab === "upload" ? 900 : 700,
+            fontSize: "0.82rem",
             cursor: "pointer",
           }}
         >
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: activeTab === "upload" ? "#fce8eb" : "transparent", display: "grid", placeItems: "center" }}>
-            <Plus size={20} />
+          <div
+            style={{
+              width: 38,
+              height: 32,
+              borderRadius: 10,
+              background: activeTab === "upload" ? "#fce8eb" : "transparent",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            <Plus size={22} strokeWidth={activeTab === "upload" ? 3 : 2} />
           </div>
           <span>Add</span>
         </button>
@@ -1645,16 +1655,25 @@ export function OwnerDashboard() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 3,
-            padding: "6px 2px",
+            gap: 4,
+            padding: "6px 4px",
             color: activeTab === "products" ? "var(--wine)" : "#746b64",
-            fontWeight: activeTab === "products" ? 900 : 600,
-            fontSize: "0.74rem",
+            fontWeight: activeTab === "products" ? 900 : 700,
+            fontSize: "0.82rem",
             cursor: "pointer",
           }}
         >
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: activeTab === "products" ? "#fce8eb" : "transparent", display: "grid", placeItems: "center" }}>
-            <Package size={18} />
+          <div
+            style={{
+              width: 38,
+              height: 32,
+              borderRadius: 10,
+              background: activeTab === "products" ? "#fce8eb" : "transparent",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            <Package size={20} strokeWidth={activeTab === "products" ? 2.5 : 2} />
           </div>
           <span>Products</span>
         </button>
@@ -1668,16 +1687,25 @@ export function OwnerDashboard() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 3,
-            padding: "6px 2px",
+            gap: 4,
+            padding: "6px 4px",
             color: activeTab === "categories" ? "var(--wine)" : "#746b64",
-            fontWeight: activeTab === "categories" ? 900 : 600,
-            fontSize: "0.74rem",
+            fontWeight: activeTab === "categories" ? 900 : 700,
+            fontSize: "0.82rem",
             cursor: "pointer",
           }}
         >
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: activeTab === "categories" ? "#fce8eb" : "transparent", display: "grid", placeItems: "center" }}>
-            <Layers size={18} />
+          <div
+            style={{
+              width: 38,
+              height: 32,
+              borderRadius: 10,
+              background: activeTab === "categories" ? "#fce8eb" : "transparent",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            <Layers size={20} strokeWidth={activeTab === "categories" ? 2.5 : 2} />
           </div>
           <span>Categories</span>
         </button>
@@ -1691,16 +1719,25 @@ export function OwnerDashboard() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 3,
-            padding: "6px 2px",
+            gap: 4,
+            padding: "6px 4px",
             color: activeTab === "orders" ? "var(--wine)" : "#746b64",
-            fontWeight: activeTab === "orders" ? 900 : 600,
-            fontSize: "0.74rem",
+            fontWeight: activeTab === "orders" ? 900 : 700,
+            fontSize: "0.82rem",
             cursor: "pointer",
           }}
         >
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: activeTab === "orders" ? "#fce8eb" : "transparent", display: "grid", placeItems: "center" }}>
-            <Bell size={18} />
+          <div
+            style={{
+              width: 38,
+              height: 32,
+              borderRadius: 10,
+              background: activeTab === "orders" ? "#fce8eb" : "transparent",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            <Bell size={20} strokeWidth={activeTab === "orders" ? 2.5 : 2} />
           </div>
           <span>Orders</span>
         </button>

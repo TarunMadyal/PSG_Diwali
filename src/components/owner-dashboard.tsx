@@ -90,6 +90,16 @@ export function OwnerDashboard() {
   const [connected, setConnected] = useState(isDemoMode());
   const seen = useRef(new Set(demoOrders.map((o) => o.id)));
 
+  // Edit & Delete Order State
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editOrderName, setEditOrderName] = useState("");
+  const [editOrderPhone, setEditOrderPhone] = useState("");
+  const [editOrderItems, setEditOrderItems] = useState<
+    Array<{ id: string; productNameEn: string; size: string; quantity: number; unitPricePaise: number }>
+  >([]);
+  const [isSavingOrderEdit, setIsSavingOrderEdit] = useState(false);
+  const [isDeletingOrder, setIsDeletingOrder] = useState(false);
+
   // Load Catalog from Supabase
   const loadCatalog = useCallback(async () => {
     if (isDemoMode()) return;
@@ -571,6 +581,102 @@ export function OwnerDashboard() {
       body: JSON.stringify({ status }),
     });
     if (response.ok) await refreshOrders();
+  };
+
+  const openEditOrderModal = (order: Order) => {
+    setEditingOrder(order);
+    setEditOrderName(order.customerName);
+    setEditOrderPhone(order.customerPhone ?? "");
+    setEditOrderItems(
+      order.items.map((i) => ({
+        id: i.id,
+        productNameEn: i.productNameEn,
+        size: i.size,
+        quantity: i.quantity,
+        unitPricePaise: i.unitPricePaise,
+      })),
+    );
+  };
+
+  const handleSaveOrderEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingOrder) return;
+    if (editOrderItems.length === 0) {
+      alert("Order must have at least one item.");
+      return;
+    }
+    setIsSavingOrderEdit(true);
+    try {
+      if (isDemoMode()) {
+        const updatedTotal = editOrderItems.reduce((sum, i) => sum + i.quantity * i.unitPricePaise, 0);
+        const updated: Order = {
+          ...editingOrder,
+          customerName: editOrderName.trim(),
+          customerPhone: editOrderPhone.trim() || undefined,
+          items: editingOrder.items
+            .map((orig) => {
+              const edited = editOrderItems.find((e) => e.id === orig.id);
+              return edited
+                ? { ...orig, quantity: edited.quantity, lineTotalPaise: edited.quantity * orig.unitPricePaise }
+                : orig;
+            })
+            .filter((orig) => editOrderItems.some((e) => e.id === orig.id)),
+          totalPaise: updatedTotal,
+        };
+        setOrders(orders.map((o) => (o.id === editingOrder.id ? updated : o)));
+        setBannerMessage({ text: `Order ${editingOrder.token} updated!`, type: "success" });
+        setEditingOrder(null);
+      } else {
+        const res = await fetch(`/api/owner/orders/${editingOrder.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            customerName: editOrderName.trim(),
+            customerPhone: editOrderPhone.trim() || null,
+            items: editOrderItems.map((i) => ({ id: i.id, quantity: i.quantity, unitPricePaise: i.unitPricePaise })),
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? "Failed to update order");
+        const updatedOrder: Order = await res.json();
+        setOrders(orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
+        setBannerMessage({ text: `Order ${editingOrder.token} updated successfully!`, type: "success" });
+        setEditingOrder(null);
+      }
+    } catch (err) {
+      setBannerMessage({ text: err instanceof Error ? err.message : "Update failed", type: "error" });
+    } finally {
+      setIsSavingOrderEdit(false);
+    }
+  };
+
+  const handleDeleteOrder = async (order: Order) => {
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete order ${order.token} for ${order.customerName}? This will cancel the order and release reserved stock.`,
+      )
+    ) {
+      return;
+    }
+    setIsDeletingOrder(true);
+    try {
+      if (isDemoMode()) {
+        const nextOrders = orders.filter((o) => o.id !== order.id);
+        setOrders(nextOrders);
+        if (selectedId === order.id) setSelectedId(nextOrders[0]?.id);
+        setBannerMessage({ text: `Order ${order.token} deleted!`, type: "success" });
+      } else {
+        const res = await fetch(`/api/owner/orders/${order.id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error((await res.json()).error ?? "Failed to delete order");
+        const nextOrders = orders.filter((o) => o.id !== order.id);
+        setOrders(nextOrders);
+        if (selectedId === order.id) setSelectedId(nextOrders[0]?.id);
+        setBannerMessage({ text: `Order ${order.token} deleted successfully!`, type: "success" });
+      }
+    } catch (err) {
+      setBannerMessage({ text: err instanceof Error ? err.message : "Delete failed", type: "error" });
+    } finally {
+      setIsDeletingOrder(false);
+    }
   };
 
   const selectedOrder = orders.find((o) => o.id === selectedId) ?? orders[0];
@@ -1318,7 +1424,7 @@ export function OwnerDashboard() {
                       </tfoot>
                     </table>
 
-                    <div className="action-row">
+                    <div className="action-row" style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
                       {nextActions[selectedOrder.status].map((status) => (
                         <button
                           key={status}
@@ -1328,11 +1434,28 @@ export function OwnerDashboard() {
                           {statusLabel[status].en}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        onClick={() => openEditOrderModal(selectedOrder)}
+                        className="secondary"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                      >
+                        <Edit2 size={16} /> Edit Order
+                      </button>
                       {["accepted", "preparing", "ready", "collected"].includes(selectedOrder.status) && (
-                        <Link className="secondary" href={`/owner/receipt/${selectedOrder.id}`}>
+                        <Link className="secondary" href={`/owner/receipt/${selectedOrder.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                           <Printer size={16} /> Print
                         </Link>
                       )}
+                      <button
+                        type="button"
+                        disabled={isDeletingOrder}
+                        onClick={() => handleDeleteOrder(selectedOrder)}
+                        className="danger"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                      >
+                        <Trash2 size={16} /> Delete
+                      </button>
                     </div>
                   </>
                 ) : (
@@ -1587,6 +1710,160 @@ export function OwnerDashboard() {
                   Save Category
                 </button>
                 <button type="button" onClick={() => setShowAddCategory(false)} className="secondary" style={{ minHeight: 44, padding: "8px 14px" }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* EDIT ORDER MODAL / DRAWER */}
+      {/* ========================================================= */}
+      {editingOrder && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              width: "100%",
+              maxWidth: 580,
+              maxHeight: "90dvh",
+              overflowY: "auto",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              padding: "20px 16px",
+              boxShadow: "0 -10px 30px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <span className="eyebrow">EDIT ORDER</span>
+                <h2 style={{ margin: "2px 0 0", fontSize: "1.3rem" }}>Token {editingOrder.token}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingOrder(null)}
+                style={{ background: "transparent", border: 0, padding: 4, cursor: "pointer" }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveOrderEdit} style={{ display: "grid", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", fontWeight: 800, fontSize: "0.9rem", marginBottom: 4 }}>
+                  Customer Name
+                </label>
+                <input
+                  required
+                  value={editOrderName}
+                  onChange={(e) => setEditOrderName(e.target.value)}
+                  style={{ width: "100%", height: 44, padding: "8px 12px", border: "1.5px solid #cbbcab", borderRadius: 10 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontWeight: 800, fontSize: "0.9rem", marginBottom: 4 }}>
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  placeholder="Optional phone number"
+                  value={editOrderPhone}
+                  onChange={(e) => setEditOrderPhone(e.target.value)}
+                  style={{ width: "100%", height: 44, padding: "8px 12px", border: "1.5px solid #cbbcab", borderRadius: 10 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontWeight: 800, fontSize: "0.9rem", marginBottom: 6 }}>
+                  Order Items & Quantities
+                </label>
+                <div style={{ display: "grid", gap: 8, background: "#fbf9f6", padding: 12, borderRadius: 12 }}>
+                  {editOrderItems.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        background: "#fff",
+                        padding: "8px 12px",
+                        borderRadius: 10,
+                        border: "1px solid #ddd",
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <strong style={{ fontSize: "0.92rem", color: "var(--ink)", display: "block" }}>{item.productNameEn}</strong>
+                        <div style={{ fontSize: "0.8rem", color: "var(--wine)", fontWeight: 800 }}>
+                          Size: {item.size} · ₹{(item.unitPricePaise / 100).toFixed(0)} each
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditOrderItems(
+                                editOrderItems.map((i) => (i.id === item.id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i)),
+                              )
+                            }
+                            style={{ width: 28, height: 28, border: "1px solid #cbbcab", borderRadius: 6, background: "#f8f5f0", display: "grid", placeItems: "center" }}
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span style={{ minWidth: 24, textAlign: "center", fontWeight: 900 }}>{item.quantity}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditOrderItems(
+                                editOrderItems.map((i) => (i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i)),
+                              )
+                            }
+                            style={{ width: 28, height: 28, border: "1px solid #cbbcab", borderRadius: 6, background: "#f8f5f0", display: "grid", placeItems: "center" }}
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditOrderItems(editOrderItems.filter((i) => i.id !== item.id))}
+                          style={{ background: "transparent", border: 0, color: "#991b1b", padding: 4, cursor: "pointer" }}
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: "1px dashed #ccc", fontWeight: 900 }}>
+                    <span>Recalculated Total:</span>
+                    <span style={{ color: "var(--wine)", fontSize: "1.1rem" }}>
+                      ₹{(editOrderItems.reduce((sum, i) => sum + i.quantity * i.unitPricePaise, 0) / 100).toFixed(0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                <button type="submit" disabled={isSavingOrderEdit} className="primary" style={{ flex: 1, minHeight: 46 }}>
+                  {isSavingOrderEdit ? "Saving…" : "Save Changes"}
+                </button>
+                <button type="button" onClick={() => setEditingOrder(null)} className="secondary" style={{ minHeight: 46, padding: "8px 16px" }}>
                   Cancel
                 </button>
               </div>

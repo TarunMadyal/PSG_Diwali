@@ -6,6 +6,7 @@ import {
   Bell,
   Camera,
   Check,
+  CheckCircle2,
   Edit2,
   Eye,
   EyeOff,
@@ -581,6 +582,32 @@ export function OwnerDashboard() {
       body: JSON.stringify({ status }),
     });
     if (response.ok) await refreshOrders();
+  };
+
+  const handleTogglePaymentStatus = async (order: Order) => {
+    const nextPaymentStatus = order.paymentStatus === "paid" ? "due" : "paid";
+    if (isDemoMode()) {
+      setOrders((current) =>
+        current.map((o) => (o.id === order.id ? { ...o, paymentStatus: nextPaymentStatus } : o)),
+      );
+      setBannerMessage({
+        text: nextPaymentStatus === "paid" ? `Order #${order.token} marked as PAID ✓` : `Order #${order.token} marked as PAYMENT DUE`,
+        type: "info",
+      });
+      return;
+    }
+    const response = await fetch(`/api/owner/orders/${order.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ paymentStatus: nextPaymentStatus }),
+    });
+    if (response.ok) {
+      await refreshOrders();
+      setBannerMessage({
+        text: nextPaymentStatus === "paid" ? `Order #${order.token} marked as PAID ✓` : `Order #${order.token} marked as PAYMENT DUE`,
+        type: "info",
+      });
+    }
   };
 
   const openEditOrderModal = (order: Order) => {
@@ -1382,7 +1409,14 @@ export function OwnerDashboard() {
                     >
                       <span className="order-token">{order.token}</span>
                       <span className="order-meta">
-                        <strong>{order.customerName}</strong>
+                        <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {order.customerName}
+                          {order.paymentStatus === "paid" && (
+                            <span style={{ fontSize: "0.68rem", color: "#09643f", background: "#dcf6e9", padding: "1px 6px", borderRadius: 6, fontWeight: 900 }}>
+                              PAID ✓
+                            </span>
+                          )}
+                        </strong>
                         <small>{order.items.reduce((s, i) => s + i.quantity, 0)} items · {money(order.totalPaise)}</small>
                       </span>
                       <span className={`status-pill ${order.status}`}>{statusLabel[order.status].en}</span>
@@ -1415,7 +1449,7 @@ export function OwnerDashboard() {
                             color: selectedOrder.paymentStatus === "paid" ? "#09643f" : "#765200",
                           }}
                         >
-                          {selectedOrder.paymentStatus === "paid" ? "✓ PAID via UPI" : "₹ PAYMENT DUE"}
+                          {selectedOrder.paymentStatus === "paid" ? "✓ PAID" : "₹ PAYMENT DUE"}
                         </span>
                       </div>
                     </div>
@@ -1451,6 +1485,25 @@ export function OwnerDashboard() {
                           {statusLabel[status].en}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePaymentStatus(selectedOrder)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          background: selectedOrder.paymentStatus === "paid" ? "#fff0cc" : "#17724c",
+                          color: selectedOrder.paymentStatus === "paid" ? "#765200" : "#fff",
+                          border: selectedOrder.paymentStatus === "paid" ? "1.5px solid #d99b36" : "none",
+                          fontWeight: 800,
+                          padding: "8px 14px",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <CheckCircle2 size={16} />
+                        {selectedOrder.paymentStatus === "paid" ? "Mark as Due" : "Mark as Paid ✓"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => openEditOrderModal(selectedOrder)}

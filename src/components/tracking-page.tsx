@@ -27,8 +27,8 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     setError("");
     try {
       if (isDemoMode()) {
@@ -40,15 +40,15 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
         setOrder(await response.json());
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not refresh order");
+      if (isInitial) setError(reason instanceof Error ? reason.message : "Could not refresh order");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   }, [trackingKey]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void refresh(), 0);
-    const interval = window.setInterval(refresh, 15000);
+    const timer = window.setTimeout(() => void refresh(true), 0);
+    const interval = window.setInterval(() => void refresh(false), 8000);
     return () => {
       window.clearTimeout(timer);
       window.clearInterval(interval);
@@ -216,9 +216,7 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
           <UpiQrCode
             amountRupees={amountRupees}
             token={order.token}
-            trackingKey={trackingKey}
             paymentStatus={order.paymentStatus}
-            onPaymentConfirmed={refresh}
           />
 
           {/* Order Status Progress Tracker */}
@@ -285,7 +283,7 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
               <button
                 type="button"
                 className="secondary"
-                onClick={refresh}
+                onClick={() => void refresh(true)}
                 disabled={loading}
                 style={{ minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.88rem" }}
               >

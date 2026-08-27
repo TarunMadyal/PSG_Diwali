@@ -2,14 +2,12 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import QRCode from "qrcode";
-import { CheckCircle2, CircleCheck, Loader2, QrCode as QrIcon, Smartphone } from "lucide-react";
+import { CircleCheck, QrCode as QrIcon } from "lucide-react";
 
 interface UpiQrCodeProps {
   amountRupees: number;
   token: string;
-  trackingKey?: string;
   paymentStatus?: "due" | "paid";
-  onPaymentConfirmed?: () => void;
   upiId?: string;
   payeeName?: string;
 }
@@ -17,22 +15,16 @@ interface UpiQrCodeProps {
 export function UpiQrCode({
   amountRupees,
   token,
-  trackingKey,
   paymentStatus = "due",
-  onPaymentConfirmed,
   upiId = "8123426350@okbizaxis",
   payeeName = "Padamshree Garments",
 }: UpiQrCodeProps) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
-  const [localConfirmed, setLocalConfirmed] = useState(false);
-  const confirmed = paymentStatus === "paid" || localConfirmed;
 
   const formattedAmount = amountRupees.toFixed(2);
 
-  // Build UPI URL without encoding pa/pn — many UPI apps break on encoded @
+  // Build UPI URL — no encoding on pa so @ stays raw for UPI apps
   const upiUrl = `upi://pay?pa=${upiId}&pn=${payeeName.replace(/\s/g, "+")}&am=${formattedAmount}&cu=INR&tn=Bill+${token}`;
-
 
   useEffect(() => {
     let active = true;
@@ -50,24 +42,8 @@ export function UpiQrCode({
     };
   }, [upiUrl]);
 
-  const handleConfirmPayment = async () => {
-    if (!trackingKey || confirmed) return;
-    setConfirming(true);
-    try {
-      const res = await fetch(`/api/orders/track/${trackingKey}/paid`, { method: "POST" });
-      if (res.ok) {
-        setLocalConfirmed(true);
-        onPaymentConfirmed?.();
-      }
-    } catch {
-      // Silently fail — user can retry
-    } finally {
-      setConfirming(false);
-    }
-  };
-
-  // Already paid — show success state
-  if (confirmed) {
+  // Already paid — show green success card
+  if (paymentStatus === "paid") {
     return (
       <div
         style={{
@@ -107,7 +83,7 @@ export function UpiQrCode({
       </div>
 
       <p style={{ margin: "0 0 14px", fontSize: "0.86rem", color: "var(--muted)" }}>
-        Scan with <strong>Google Pay, PhonePe, Paytm, or BHIM</strong> to pay exact amount:
+        Open <strong>Google Pay, PhonePe, Paytm, or BHIM</strong> on another phone and scan this QR:
       </p>
 
       {/* QR Code Container */}
@@ -158,67 +134,24 @@ export function UpiQrCode({
         </div>
       </div>
 
-      {/* Actions */}
-      <div style={{ display: "grid", gap: 10, maxWidth: 360, margin: "0 auto" }}>
-        <a
-          href={upiUrl}
-          className="primary full"
-          style={{
-            minHeight: 46,
-            fontSize: "0.95rem",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            borderRadius: 12,
-          }}
-        >
-          <Smartphone size={18} /> Tap to Pay in UPI App
-        </a>
-
-        {/* Confirm Payment Button */}
-        {trackingKey && (
-          <button
-            type="button"
-            onClick={handleConfirmPayment}
-            disabled={confirming}
-            className="primary full"
-            style={{
-              minHeight: 46,
-              fontSize: "0.95rem",
-              background: "var(--green)",
-              boxShadow: "0 4px 12px rgba(23,114,76,0.22)",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              borderRadius: 12,
-            }}
-          >
-            {confirming ? (
-              <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> Confirming…</>
-            ) : (
-              <><CheckCircle2 size={18} /> I have Paid via UPI</>
-            )}
-          </button>
-        )}
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            fontSize: "0.82rem",
-            color: "var(--green)",
-            fontWeight: 800,
-            background: "#edfbf3",
-            padding: "8px 12px",
-            borderRadius: 10,
-          }}
-        >
-          <CheckCircle2 size={16} /> Cash payment at counter is also accepted
-        </div>
+      {/* Cash notice */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          fontSize: "0.85rem",
+          color: "var(--green)",
+          fontWeight: 800,
+          background: "#edfbf3",
+          padding: "10px 14px",
+          borderRadius: 10,
+          maxWidth: 360,
+          margin: "0 auto",
+        }}
+      >
+        💵 Cash payment at counter is also accepted
       </div>
     </div>
   );

@@ -86,8 +86,10 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
   const exceptional = order.status === "cancelled" || order.status === "expired";
   const amountRupees = order.totalPaise / 100;
 
-  // WhatsApp share text generator
-  const itemsText = order.items.map((i) => `• ${i.productNameEn} (Size: ${i.size}) x ${i.quantity} = ₹${(i.lineTotalPaise / 100).toFixed(0)}`).join("%0A");
+  const safeItems = order.items ?? [];
+  const itemsText = safeItems
+    .map((i) => `• ${i.productNameEn} (Size: ${i.size}) x ${i.quantity} = ₹${(i.lineTotalPaise / 100).toFixed(0)}`)
+    .join("%0A");
   const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(
     `*PADAMSHREE GARMENTS - ORDER BILL*\n📍 MG ROAD Haveri - 581110\n\n🧾 Token / Bill #: *${order.token}*\n👤 Customer Name: *${order.customerName}*${order.customerPhone ? `\n📞 Phone: ${order.customerPhone}` : ""}\n\n👗 *Items Ordered:*\n`,
   )}${itemsText}${encodeURIComponent(`\n\n💰 *Total Amount: ₹${amountRupees.toFixed(0)}*\n\nStatus: ${statusLabel[order.status].en}\n(Pay via UPI QR or Cash at counter)`) }`;
@@ -184,7 +186,7 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
                 </tr>
               </thead>
               <tbody>
-                {order.items.map((item) => (
+                {safeItems.map((item) => (
                   <tr key={item.id}>
                     <td style={{ padding: "10px 8px" }}>
                       <strong style={{ fontSize: "0.92rem", color: "var(--ink)" }}>{item.productNameEn}</strong>

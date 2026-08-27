@@ -3,29 +3,27 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   Check,
+  CheckCircle2,
+  Download,
   MapPin,
   Phone,
-  Printer,
-  RefreshCw,
-  Share2,
   ShoppingBag,
 } from "lucide-react";
 import { demoOrders, isDemoMode } from "@/lib/demo-data";
 import { copy } from "@/lib/i18n";
-import { money, statusLabel } from "@/lib/format";
-import type { Order, OrderStatus } from "@/lib/types";
+import { money } from "@/lib/format";
+import type { Order } from "@/lib/types";
 import { useApp } from "./app-providers";
 import { BrandLogo } from "./brand-logo";
 import { CustomerHeader } from "./customer-header";
 import { UpiQrCode } from "./upi-qr-code";
-
-const path: OrderStatus[] = ["placed", "accepted", "preparing", "ready", "collected"];
 
 export function TrackingPage({ trackingKey }: { trackingKey: string }) {
   const { language } = useApp();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [billSaved, setBillSaved] = useState(false);
 
   const refresh = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
@@ -55,6 +53,43 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
     };
   }, [refresh]);
 
+  // Auto-save active order in localStorage for instant retrieval if user closes the tab
+  useEffect(() => {
+    if (order) {
+      try {
+        localStorage.setItem(
+          "psg-active-order",
+          JSON.stringify({
+            trackingKey: order.trackingKey,
+            token: order.token,
+            customerName: order.customerName,
+            placedAt: order.placedAt,
+          }),
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }, [order]);
+
+  const handleSaveBill = () => {
+    if (!order) return;
+    try {
+      // Save to localStorage saved bills list
+      const savedBills = JSON.parse(localStorage.getItem("psg-saved-bills") ?? "[]");
+      const exists = savedBills.some((b: Order) => b.token === order.token);
+      if (!exists) {
+        localStorage.setItem("psg-saved-bills", JSON.stringify([order, ...savedBills]));
+      }
+      setBillSaved(true);
+      setTimeout(() => setBillSaved(false), 5000);
+      // Trigger system print / save as PDF prompt
+      window.print();
+    } catch {
+      setBillSaved(true);
+    }
+  };
+
   if (!order && !loading) {
     return (
       <div className="customer-shell">
@@ -82,17 +117,8 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
     );
   }
 
-  const current = path.indexOf(order.status);
-  const exceptional = order.status === "cancelled" || order.status === "expired";
   const amountRupees = order.totalPaise / 100;
-
   const safeItems = order.items ?? [];
-  const itemsText = safeItems
-    .map((i) => `• ${i.productNameEn} (Size: ${i.size}) x ${i.quantity} = ₹${(i.lineTotalPaise / 100).toFixed(0)}`)
-    .join("%0A");
-  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(
-    `*PADAMSHREE GARMENTS - ORDER BILL*\n📍 MG ROAD Haveri - 581110\n\n🧾 Token / Bill #: *${order.token}*\n👤 Customer Name: *${order.customerName}*${order.customerPhone ? `\n📞 Phone: ${order.customerPhone}` : ""}\n\n👗 *Items Ordered:*\n`,
-  )}${itemsText}${encodeURIComponent(`\n\n💰 *Total Amount: ₹${amountRupees.toFixed(0)}*\n\nStatus: ${statusLabel[order.status].en}\n(Pay via UPI QR or Cash at counter)`) }`;
 
   return (
     <div className="customer-shell">
@@ -219,84 +245,85 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
             paymentStatus={order.paymentStatus}
           />
 
-          {/* Order Status Progress Tracker */}
-          <div style={{ marginTop: 22, borderTop: "1px solid #e8e2da", paddingTop: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: "0.95rem", color: "var(--ink)" }}>Order Status</h3>
-              <span className={`status-pill ${order.status}`}>{statusLabel[order.status][language]}</span>
-            </div>
-
-            <div className="status-steps" style={{ margin: "10px 0" }}>
-              {exceptional ? (
-                <div className="status-step current">
-                  <span className="status-dot">!</span>
-                  <strong>{statusLabel[order.status][language]}</strong>
+          {/* Simplified Order Status Message */}
+          <div
+            style={{
+              marginTop: 20,
+              borderTop: "1.5px dashed #e8e2da",
+              paddingTop: 18,
+            }}
+          >
+            <div
+              style={{
+                background: "#edfbf3",
+                border: "1.5px solid #17724c",
+                borderRadius: 14,
+                padding: "14px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <CheckCircle2 size={26} color="#17724c" style={{ flexShrink: 0 }} />
+              <div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 900, color: "#17724c" }}>
+                  {language === "kn" ? "ಆರ್ಡರ್ ಸ್ವೀಕರಿಸಲಾಗಿದೆ!" : "Order Placed!"}
                 </div>
-              ) : (
-                path.map((status, index) => (
-                  <div
-                    className={`status-step ${index < current ? "done" : index === current ? "current" : ""}`}
-                    key={status}
-                  >
-                    <span className="status-dot">{index <= current ? <Check size={16} /> : index + 1}</span>
-                    <div>
-                      <strong>{statusLabel[status][language]}</strong>
-                    </div>
-                  </div>
-                ))
-              )}
+                <div style={{ fontSize: "0.88rem", color: "var(--ink)", fontWeight: 700, marginTop: 2 }}>
+                  {language === "kn"
+                    ? "ದಯವಿಟ್ಟು ಕೌಂಟರ್‌ಗೆ ಬಂದು ನಿಮ್ಮ ಆರ್ಡರ್ ಪಡೆದುಕೊಳ್ಳಿ."
+                    : "Please walk to the counter and collect your order."}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Actions: WhatsApp Share, Print Bill, Refresh */}
+          {/* Actions: Save Bill & Browse Other Clothes */}
           <div style={{ display: "grid", gap: 10, marginTop: 20 }}>
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={handleSaveBill}
               className="primary full"
               style={{
                 minHeight: 48,
-                background: "#25d366",
-                color: "#fff",
+                fontSize: "0.98rem",
+                fontWeight: 900,
+                borderRadius: 14,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 8,
-                borderRadius: 12,
-                fontSize: "0.95rem",
+                background: billSaved ? "#17724c" : "var(--wine)",
+                boxShadow: "0 4px 14px rgba(143,29,44,0.2)",
+                transition: "all 0.2s ease",
               }}
             >
-              <Share2 size={18} /> Send / Share Bill on WhatsApp
-            </a>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => window.print()}
-                style={{ minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.88rem" }}
-              >
-                <Printer size={16} /> Print Bill
-              </button>
-
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => void refresh(true)}
-                disabled={loading}
-                style={{ minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.88rem" }}
-              >
-                <RefreshCw size={16} /> Refresh Status
-              </button>
-            </div>
+              {billSaved ? <Check size={20} /> : <Download size={20} />}
+              {billSaved
+                ? language === "kn"
+                  ? "✓ ಬಿಲ್ ಸೇವ್ ಆಗಿದೆ!"
+                  : "✓ Bill Saved to Phone!"
+                : language === "kn"
+                ? "💾 ಬಿಲ್ ಸೇವ್ ಮಾಡಿ"
+                : "💾 Save Bill"}
+            </button>
 
             <Link
               href="/"
               className="secondary full"
-              style={{ minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.88rem", marginTop: 4 }}
+              style={{
+                minHeight: 46,
+                fontSize: "0.92rem",
+                fontWeight: 800,
+                borderRadius: 14,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
             >
-              <ShoppingBag size={16} /> Browse More Clothes
+              <ShoppingBag size={18} />
+              {language === "kn" ? "ಬೇರೆ ಬಟ್ಟೆಗಳನ್ನು ವೀಕ್ಷಿಸಿ" : "Browse Other Clothes"}
             </Link>
           </div>
 

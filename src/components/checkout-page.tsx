@@ -26,6 +26,14 @@ export function CheckoutPage() {
         const response = await fetch("/api/orders", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": idempotencyKey }, body: JSON.stringify({ customerName: name.trim(), customerPhone: phone.trim() || null, language, items: cart.map((line) => ({ variantId: line.variantId, quantity: line.quantity })) }) });
         if (!response.ok) throw new Error((await response.json()).error ?? "Order could not be placed"); order = await response.json();
       }
+      try {
+        localStorage.setItem("psg-active-order", JSON.stringify({
+          trackingKey: order.trackingKey,
+          token: order.token,
+          customerName: name.trim(),
+          placedAt: new Date().toISOString(),
+        }));
+      } catch {}
       clearCart(); router.push(`/track/${order.trackingKey}`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Order could not be placed"); setBusy(false); }
   }

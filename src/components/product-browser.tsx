@@ -19,7 +19,7 @@ function ProductCard({ product, eager = false }: { product: Product; eager?: boo
   );
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "");
   const [quantity, setQuantity] = useState(1);
-  const variant = variants.find((item) => item.id === variantId);
+  const variant = variants.find((item) => item.id === variantId) ?? variants[0];
   const max = variant ? availableStock(variant.stockOnHand, variant.reservedQuantity) : 0;
   const t = copy[language];
 

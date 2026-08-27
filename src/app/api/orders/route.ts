@@ -9,7 +9,14 @@ export async function POST(request: Request) {
     const body = schema.parse(await request.json()); const idempotencyKey = request.headers.get("idempotency-key");
     if (!idempotencyKey || !z.string().uuid().safeParse(idempotencyKey).success) return NextResponse.json({ error: "Missing idempotency key" }, { status: 400 });
     const supabase = await createServerSupabase();
-    const { data, error } = await supabase.rpc("place_order", { p_customer_name: body.customerName, p_customer_phone: body.customerPhone || null, p_language: body.language, p_source: "customer", p_idempotency_key: idempotencyKey, p_items: body.items.map((item) => ({ variant_id: item.variantId, quantity: item.quantity })) });
+    const { data, error } = await supabase.rpc("place_order", {
+      p_customer_name: body.customerName,
+      p_customer_phone: body.customerPhone || null,
+      p_language: body.language,
+      p_source: "customer",
+      p_idempotency_key: idempotencyKey,
+      p_items: body.items.map((item) => ({ variantId: item.variantId, variant_id: item.variantId, quantity: item.quantity })),
+    });
     if (error) return NextResponse.json({ error: error.message }, { status: error.code === "P0001" ? 409 : 400 });
     return NextResponse.json(data, { status: 201 });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid order" }, { status: 400 }); }

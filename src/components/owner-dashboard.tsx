@@ -4,10 +4,15 @@ import Image from "next/image";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
+  Camera,
   Check,
+  Edit2,
+  Eye,
+  EyeOff,
   FolderPlus,
   Image as ImageIcon,
   Layers,
+  Minus,
   Package,
   Plus,
   Printer,
@@ -19,6 +24,7 @@ import {
 } from "lucide-react";
 import { demoCategories, demoOrders, demoProducts, isDemoMode } from "@/lib/demo-data";
 import { activeStatuses, money, statusLabel } from "@/lib/format";
+import { autoTranslateToKannada } from "@/lib/kannada";
 import type { Category, Order, OrderStatus, Product } from "@/lib/types";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { BrandLogo } from "./brand-logo";
@@ -37,7 +43,7 @@ const nextActions: Record<OrderStatus, OrderStatus[]> = {
 };
 
 export function OwnerDashboard() {
-  // Navigation tabs
+  // Navigation Tabs (Mobile-first)
   const [activeTab, setActiveTab] = useState<"upload" | "products" | "categories" | "orders">("upload");
 
   // Catalog State
@@ -46,26 +52,37 @@ export function OwnerDashboard() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [bannerMessage, setBannerMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
-  // New Product Form State
+  // New Product Form State (English only)
   const [nameEn, setNameEn] = useState("");
-  const [nameKn, setNameKn] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [priceRupees, setPriceRupees] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [sizeVariants, setSizeVariants] = useState<Array<{ size: string; stock: number; colorEn: string; colorKn: string }>>([
-    { size: "M", stock: 10, colorEn: "Standard", colorKn: "ಸಾಮಾನ್ಯ" },
-    { size: "L", stock: 10, colorEn: "Standard", colorKn: "ಸಾಮಾನ್ಯ" },
-    { size: "XL", stock: 10, colorEn: "Standard", colorKn: "ಸಾಮಾನ್ಯ" },
+  const [sizeVariants, setSizeVariants] = useState<Array<{ size: string; stock: number; colorEn: string }>>([
+    { size: "M", stock: 10, colorEn: "Standard" },
+    { size: "L", stock: 10, colorEn: "Standard" },
+    { size: "XL", stock: 10, colorEn: "Standard" },
   ]);
   const [customSizeInput, setCustomSizeInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // New Category Modal / Inline Form State
+  // Edit Product Modal State
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editNameEn, setEditNameEn] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState("");
+  const [editPriceRupees, setEditPriceRupees] = useState("");
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
+  const [editVariants, setEditVariants] = useState<Array<{ id: string; size: string; stock: number; colorEn: string }>>([]);
+  const [editCustomSize, setEditCustomSize] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Category Add/Edit Modal State (English only)
   const [showAddCategory, setShowAddCategory] = useState(false);
-  const [newCatNameEn, setNewCatNameEn] = useState("");
-  const [newCatNameKn, setNewCatNameKn] = useState("");
-  const [newCatImageFile, setNewCatImageFile] = useState<File | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [catNameEn, setCatNameEn] = useState("");
+  const [catImageFile, setCatImageFile] = useState<File | null>(null);
+  const [catImagePreview, setCatImagePreview] = useState<string | null>(null);
 
   // Orders State
   const [orders, setOrders] = useState<Order[]>(demoOrders);
@@ -89,7 +106,7 @@ export function OwnerDashboard() {
           id: c.id,
           slug: c.slug,
           nameEn: c.name_en,
-          nameKn: c.name_kn,
+          nameKn: c.name_kn ?? autoTranslateToKannada(c.name_en),
           imageUrl: c.image_path ?? "/demo/category-1.svg",
           sortOrder: c.sort_order,
           active: c.active,
@@ -105,7 +122,7 @@ export function OwnerDashboard() {
           id: p.id,
           categoryId: p.category_id,
           nameEn: p.name_en,
-          nameKn: p.name_kn,
+          nameKn: p.name_kn ?? autoTranslateToKannada(p.name_en),
           pricePaise: p.price_paise,
           imageUrl: p.image_path ?? "/demo/product-1.svg",
           sortOrder: p.sort_order,
@@ -141,7 +158,7 @@ export function OwnerDashboard() {
     }
   }, [selectedCategoryId]);
 
-  // Load Orders from Server API
+  // Load Orders
   const refreshOrders = useCallback(async () => {
     if (isDemoMode()) {
       const local = JSON.parse(localStorage.getItem("psg-demo-orders") ?? "[]") as Order[];
@@ -190,98 +207,37 @@ export function OwnerDashboard() {
     };
   }, [loadCatalog, refreshOrders]);
 
-  // Image upload handler for new product
+  // -------------------------------------------------------------
+  // Product Creation Handlers
+  // -------------------------------------------------------------
   const handleProductImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setImageFile(file);
-      const url = URL.createObjectURL(file);
-      setImagePreview(url);
+      setImagePreview(URL.createObjectURL(file));
     }
   };
 
-  // Toggle size chip
   const toggleSize = (size: string) => {
     if (sizeVariants.some((v) => v.size === size)) {
       setSizeVariants(sizeVariants.filter((v) => v.size !== size));
     } else {
-      setSizeVariants([...sizeVariants, { size, stock: 10, colorEn: "Standard", colorKn: "ಸಾಮಾನ್ಯ" }]);
+      setSizeVariants([...sizeVariants, { size, stock: 10, colorEn: "Standard" }]);
     }
   };
 
-  // Add custom size
   const handleAddCustomSize = () => {
     const trimmed = customSizeInput.trim();
     if (trimmed && !sizeVariants.some((v) => v.size.toLowerCase() === trimmed.toLowerCase())) {
-      setSizeVariants([...sizeVariants, { size: trimmed, stock: 10, colorEn: "Standard", colorKn: "ಸಾಮಾನ್ಯ" }]);
+      setSizeVariants([...sizeVariants, { size: trimmed, stock: 10, colorEn: "Standard" }]);
       setCustomSizeInput("");
     }
   };
 
-  // Update stock for a specific size
   const updateSizeStock = (size: string, stock: number) => {
     setSizeVariants(sizeVariants.map((v) => (v.size === size ? { ...v, stock: Math.max(0, stock) } : v)));
   };
 
-  // Quick category creation
-  const handleCreateCategory = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!newCatNameEn.trim()) return;
-
-    const catNameEn = newCatNameEn.trim();
-    const catNameKn = newCatNameKn.trim() || catNameEn;
-    const slug = catNameEn.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const id = crypto.randomUUID();
-
-    let uploadedImagePath = "/demo/category-1.svg";
-
-    if (!isDemoMode()) {
-      const supabase = createBrowserSupabase();
-      if (newCatImageFile) {
-        const path = `categories/${id}/${crypto.randomUUID()}-${newCatImageFile.name.replace(/[^a-zA-Z0-9.-]/g, "-")}`;
-        const { error: uploadErr } = await supabase.storage.from("catalog").upload(path, newCatImageFile);
-        if (!uploadErr) {
-          const { data } = supabase.storage.from("catalog").getPublicUrl(path);
-          uploadedImagePath = data.publicUrl;
-        }
-      }
-
-      const { error } = await supabase.from("categories").insert({
-        id,
-        slug,
-        name_en: catNameEn,
-        name_kn: catNameKn,
-        image_path: uploadedImagePath,
-        sort_order: categories.length * 10 + 10,
-        active: true,
-      });
-
-      if (error) {
-        setBannerMessage({ text: `Failed to create category: ${error.message}`, type: "error" });
-        return;
-      }
-    }
-
-    const newCategory: Category = {
-      id,
-      slug,
-      nameEn: catNameEn,
-      nameKn: catNameKn,
-      imageUrl: uploadedImagePath,
-      sortOrder: categories.length * 10 + 10,
-      active: true,
-    };
-
-    setCategories((prev) => [...prev, newCategory]);
-    setSelectedCategoryId(id);
-    setShowAddCategory(false);
-    setNewCatNameEn("");
-    setNewCatNameKn("");
-    setNewCatImageFile(null);
-    setBannerMessage({ text: `Category "${catNameEn}" created successfully!`, type: "success" });
-  };
-
-  // Product Submit Handler
   const handleUploadProduct = async (e: FormEvent) => {
     e.preventDefault();
     if (!nameEn.trim()) {
@@ -295,60 +251,57 @@ export function OwnerDashboard() {
     }
     const priceNum = parseFloat(priceRupees);
     if (isNaN(priceNum) || priceNum <= 0) {
-      setBannerMessage({ text: "Please enter a valid price in rupees.", type: "error" });
+      setBannerMessage({ text: "Please enter a valid price in ₹.", type: "error" });
       return;
     }
     if (sizeVariants.length === 0) {
-      setBannerMessage({ text: "Please select at least one size for this product.", type: "error" });
+      setBannerMessage({ text: "Please select at least one size.", type: "error" });
       return;
     }
 
     setIsSubmitting(true);
-    setBannerMessage({ text: "Uploading product and saving sizes…", type: "info" });
+    setBannerMessage({ text: "Uploading product from your phone…", type: "info" });
 
     const productId = crypto.randomUUID();
     let imageUrl = "/demo/product-1.svg";
+    const autoKn = autoTranslateToKannada(nameEn.trim());
 
     try {
       if (!isDemoMode()) {
         const supabase = createBrowserSupabase();
 
-        // 1. Upload image to Supabase Storage if file was provided
+        // 1. Upload image if provided
         if (imageFile) {
           const cleanName = imageFile.name.replace(/[^a-zA-Z0-9.-]/g, "-");
           const storagePath = `products/${productId}/${crypto.randomUUID()}-${cleanName}`;
           const { error: uploadError } = await supabase.storage.from("catalog").upload(storagePath, imageFile);
-          if (uploadError) {
-            console.warn("Storage upload failed, fallback to default URL:", uploadError.message);
-          } else {
+          if (!uploadError) {
             const { data } = supabase.storage.from("catalog").getPublicUrl(storagePath);
             imageUrl = data.publicUrl;
           }
         }
 
-        // 2. Insert product record
+        // 2. Insert product
         const { error: productError } = await supabase.from("products").insert({
           id: productId,
           category_id: catId,
           name_en: nameEn.trim(),
-          name_kn: nameKn.trim() || nameEn.trim(),
+          name_kn: autoKn,
           price_paise: Math.round(priceNum * 100),
           image_path: imageUrl,
           sort_order: products.length * 10 + 10,
           active: true,
         });
 
-        if (productError) {
-          throw new Error(`Product save failed: ${productError.message}`);
-        }
+        if (productError) throw new Error(productError.message);
 
-        // 3. Insert product variants for sizes
+        // 3. Insert size variants
         const variantRows = sizeVariants.map((v) => ({
           id: crypto.randomUUID(),
           product_id: productId,
           size: v.size,
           color_en: v.colorEn || "Standard",
-          color_kn: v.colorKn || "ಸಾಮಾನ್ಯ",
+          color_kn: autoTranslateToKannada(v.colorEn || "Standard"),
           stock_on_hand: v.stock,
           reserved_quantity: 0,
           sold_quantity: 0,
@@ -357,35 +310,140 @@ export function OwnerDashboard() {
         }));
 
         const { error: variantsError } = await supabase.from("product_variants").insert(variantRows);
-        if (variantsError) {
-          throw new Error(`Size variants save failed: ${variantsError.message}`);
-        }
+        if (variantsError) throw new Error(variantsError.message);
       }
 
       // Reset form
       setNameEn("");
-      setNameKn("");
       setPriceRupees("");
       setImageFile(null);
       setImagePreview(null);
       setSizeVariants([
-        { size: "M", stock: 10, colorEn: "Standard", colorKn: "ಸಾಮಾನ್ಯ" },
-        { size: "L", stock: 10, colorEn: "Standard", colorKn: "ಸಾಮಾನ್ಯ" },
-        { size: "XL", stock: 10, colorEn: "Standard", colorKn: "ಸಾಮಾನ್ಯ" },
+        { size: "M", stock: 10, colorEn: "Standard" },
+        { size: "L", stock: 10, colorEn: "Standard" },
+        { size: "XL", stock: 10, colorEn: "Standard" },
       ]);
 
-      setBannerMessage({ text: `🎉 Product "${nameEn}" uploaded and published to customer shop!`, type: "success" });
+      setBannerMessage({ text: `🎉 "${nameEn}" added to shop!`, type: "success" });
       await loadCatalog();
       setActiveTab("products");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Upload failed";
-      setBannerMessage({ text: msg, type: "error" });
+      setBannerMessage({ text: err instanceof Error ? err.message : "Upload failed", type: "error" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Toggle product active state
+  // -------------------------------------------------------------
+  // Product Edit Handlers
+  // -------------------------------------------------------------
+  const openEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setEditNameEn(product.nameEn);
+    setEditCategoryId(product.categoryId);
+    setEditPriceRupees((product.pricePaise / 100).toString());
+    setEditImageFile(null);
+    setEditImagePreview(product.imageUrl);
+    setEditVariants(
+      product.variants.map((v) => ({
+        id: v.id,
+        size: v.size,
+        stock: v.stockOnHand,
+        colorEn: v.colorEn || "Standard",
+      })),
+    );
+  };
+
+  const handleSaveProductEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    const priceNum = parseFloat(editPriceRupees);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      alert("Please enter a valid price in ₹.");
+      return;
+    }
+
+    setIsSavingEdit(true);
+    const autoKn = autoTranslateToKannada(editNameEn.trim());
+    let imageUrl = editingProduct.imageUrl;
+
+    try {
+      if (!isDemoMode()) {
+        const supabase = createBrowserSupabase();
+
+        // 1. Upload replacement image if selected
+        if (editImageFile) {
+          const cleanName = editImageFile.name.replace(/[^a-zA-Z0-9.-]/g, "-");
+          const storagePath = `products/${editingProduct.id}/${crypto.randomUUID()}-${cleanName}`;
+          const { error: uploadError } = await supabase.storage.from("catalog").upload(storagePath, editImageFile);
+          if (!uploadError) {
+            const { data } = supabase.storage.from("catalog").getPublicUrl(storagePath);
+            imageUrl = data.publicUrl;
+          }
+        }
+
+        // 2. Update product
+        const { error: pError } = await supabase
+          .from("products")
+          .update({
+            name_en: editNameEn.trim(),
+            name_kn: autoKn,
+            category_id: editCategoryId,
+            price_paise: Math.round(priceNum * 100),
+            image_path: imageUrl,
+          })
+          .eq("id", editingProduct.id);
+
+        if (pError) throw new Error(pError.message);
+
+        // 3. Upsert variants
+        for (const v of editVariants) {
+          await supabase.from("product_variants").upsert({
+            id: v.id,
+            product_id: editingProduct.id,
+            size: v.size,
+            color_en: v.colorEn,
+            color_kn: autoTranslateToKannada(v.colorEn),
+            stock_on_hand: v.stock,
+            active: true,
+          });
+        }
+      }
+
+      setBannerMessage({ text: `Updated "${editNameEn}" successfully!`, type: "success" });
+      setEditingProduct(null);
+      await loadCatalog();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to save product.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Quick stock adjuster (+1 / -1) from card view
+  const adjustQuickStock = async (product: Product, variantId: string, delta: number) => {
+    const v = product.variants.find((item) => item.id === variantId);
+    if (!v) return;
+    const newStock = Math.max(0, v.stockOnHand + delta);
+
+    if (!isDemoMode()) {
+      const supabase = createBrowserSupabase();
+      await supabase.from("product_variants").update({ stock_on_hand: newStock }).eq("id", variantId);
+    }
+
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === product.id
+          ? {
+              ...p,
+              variants: p.variants.map((item) => (item.id === variantId ? { ...item, stockOnHand: newStock } : item)),
+            }
+          : p,
+      ),
+    );
+  };
+
   const handleToggleProductActive = async (product: Product) => {
     if (!isDemoMode()) {
       const supabase = createBrowserSupabase();
@@ -393,14 +451,13 @@ export function OwnerDashboard() {
     }
     setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, active: !p.active } : p)));
     setBannerMessage({
-      text: `Product "${product.nameEn}" is now ${!product.active ? "Visible on shop" : "Hidden from shop"}.`,
+      text: `"${product.nameEn}" is now ${!product.active ? "Visible" : "Hidden"}.`,
       type: "info",
     });
   };
 
-  // Delete product
   const handleDeleteProduct = async (product: Product) => {
-    if (!confirm(`Are you sure you want to delete "${product.nameEn}"?`)) return;
+    if (!confirm(`Delete "${product.nameEn}"?`)) return;
     if (!isDemoMode()) {
       const supabase = createBrowserSupabase();
       await supabase.from("product_variants").delete().eq("product_id", product.id);
@@ -410,7 +467,95 @@ export function OwnerDashboard() {
     setBannerMessage({ text: `Product "${product.nameEn}" deleted.`, type: "info" });
   };
 
-  // Order state transition
+  // -------------------------------------------------------------
+  // Category Handlers (Add / Edit / Delete)
+  // -------------------------------------------------------------
+  const openAddCategoryModal = () => {
+    setEditingCategory(null);
+    setCatNameEn("");
+    setCatImageFile(null);
+    setCatImagePreview(null);
+    setShowAddCategory(true);
+  };
+
+  const openEditCategoryModal = (cat: Category) => {
+    setEditingCategory(cat);
+    setCatNameEn(cat.nameEn);
+    setCatImageFile(null);
+    setCatImagePreview(cat.imageUrl);
+    setShowAddCategory(true);
+  };
+
+  const handleSaveCategory = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!catNameEn.trim()) return;
+
+    const name = catNameEn.trim();
+    const autoKn = autoTranslateToKannada(name);
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `cat-${Date.now()}`;
+    const id = editingCategory ? editingCategory.id : crypto.randomUUID();
+    let imagePath = editingCategory ? editingCategory.imageUrl : "/demo/category-1.svg";
+
+    if (!isDemoMode()) {
+      const supabase = createBrowserSupabase();
+      if (catImageFile) {
+        const path = `categories/${id}/${crypto.randomUUID()}-${catImageFile.name.replace(/[^a-zA-Z0-9.-]/g, "-")}`;
+        const { error: uploadErr } = await supabase.storage.from("catalog").upload(path, catImageFile);
+        if (!uploadErr) {
+          const { data } = supabase.storage.from("catalog").getPublicUrl(path);
+          imagePath = data.publicUrl;
+        }
+      }
+
+      if (editingCategory) {
+        const { error } = await supabase.from("categories").update({
+          name_en: name,
+          name_kn: autoKn,
+          image_path: imagePath,
+        }).eq("id", id);
+        if (error) {
+          alert(`Error updating category: ${error.message}`);
+          return;
+        }
+      } else {
+        const { error } = await supabase.from("categories").insert({
+          id,
+          slug,
+          name_en: name,
+          name_kn: autoKn,
+          image_path: imagePath,
+          sort_order: categories.length * 10 + 10,
+          active: true,
+        });
+        if (error) {
+          alert(`Error adding category: ${error.message}`);
+          return;
+        }
+      }
+    }
+
+    setShowAddCategory(false);
+    setBannerMessage({ text: `Category "${name}" saved!`, type: "success" });
+    await loadCatalog();
+  };
+
+  const handleDeleteCategory = async (cat: Category) => {
+    const count = products.filter((p) => p.categoryId === cat.id).length;
+    if (count > 0) {
+      alert(`Cannot delete category "${cat.nameEn}" because it has ${count} product(s). Please move or delete those products first.`);
+      return;
+    }
+    if (!confirm(`Delete category "${cat.nameEn}"?`)) return;
+
+    if (!isDemoMode()) {
+      const supabase = createBrowserSupabase();
+      await supabase.from("categories").delete().eq("id", cat.id);
+    }
+    setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+    setBannerMessage({ text: `Category "${cat.nameEn}" deleted.`, type: "info" });
+  };
+
+  // Order transition
   const handleOrderTransition = async (status: OrderStatus) => {
     const selected = orders.find((o) => o.id === selectedId) ?? orders[0];
     if (!selected) return;
@@ -443,72 +588,91 @@ export function OwnerDashboard() {
   );
 
   return (
-    <div className="owner-shell">
-      {/* Top Navigation Bar */}
-      <header className="owner-header" style={{ height: "auto", minHeight: 70, padding: "12px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Link href="/owner" aria-label="PSG Owner Home">
+    <div className="owner-shell" style={{ paddingBottom: 80 }}>
+      {/* Top Header */}
+      <header
+        className="owner-header"
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 30,
+          background: "#fff",
+          borderBottom: "1px solid #e2ddd8",
+          padding: "10px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href="/owner">
             <BrandLogo compact priority />
           </Link>
-          <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "var(--wine)", background: "#fae8ea", padding: "4px 10px", borderRadius: 999 }}>
-            Owner Portal
+          <span style={{ fontSize: "0.75rem", fontWeight: 900, background: "#fae8ea", color: "var(--wine)", padding: "3px 8px", borderRadius: 999 }}>
+            Owner
           </span>
         </div>
 
-        <nav className="owner-nav" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {/* Desktop/Tablet Top Tabs */}
+        <nav className="owner-nav" style={{ display: "flex", gap: 6 }}>
           <button
             type="button"
             onClick={() => setActiveTab("upload")}
             className={activeTab === "upload" ? "primary" : "secondary"}
-            style={{ minHeight: 42, padding: "8px 16px", borderRadius: 10, display: "flex", alignItems: "center", gap: 6, fontSize: "0.9rem" }}
+            style={{ minHeight: 38, padding: "6px 14px", borderRadius: 10, fontSize: "0.88rem", display: "flex", alignItems: "center", gap: 6 }}
           >
-            <Plus size={18} /> Upload Product
+            <Plus size={16} /> Add Product
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("products")}
             className={activeTab === "products" ? "primary" : "secondary"}
-            style={{ minHeight: 42, padding: "8px 16px", borderRadius: 10, display: "flex", alignItems: "center", gap: 6, fontSize: "0.9rem" }}
+            style={{ minHeight: 38, padding: "6px 14px", borderRadius: 10, fontSize: "0.88rem", display: "flex", alignItems: "center", gap: 6 }}
           >
-            <Package size={18} /> Products ({products.length})
+            <Package size={16} /> Products ({products.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("categories")}
             className={activeTab === "categories" ? "primary" : "secondary"}
-            style={{ minHeight: 42, padding: "8px 16px", borderRadius: 10, display: "flex", alignItems: "center", gap: 6, fontSize: "0.9rem" }}
+            style={{ minHeight: 38, padding: "6px 14px", borderRadius: 10, fontSize: "0.88rem", display: "flex", alignItems: "center", gap: 6 }}
           >
-            <Layers size={18} /> Categories ({categories.length})
+            <Layers size={16} /> Categories ({categories.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("orders")}
             className={activeTab === "orders" ? "primary" : "secondary"}
-            style={{ minHeight: 42, padding: "8px 16px", borderRadius: 10, display: "flex", alignItems: "center", gap: 6, fontSize: "0.9rem" }}
+            style={{ minHeight: 38, padding: "6px 14px", borderRadius: 10, fontSize: "0.88rem", display: "flex", alignItems: "center", gap: 6 }}
           >
-            <Bell size={18} /> Orders ({orders.filter((o) => activeStatuses.includes(o.status)).length})
+            <Bell size={16} /> Orders ({orders.filter((o) => activeStatuses.includes(o.status)).length})
           </button>
         </nav>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Link className="secondary" href="/" target="_blank" style={{ minHeight: 40, display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px" }}>
-            <ShoppingBag size={16} /> View Shop
-          </Link>
-        </div>
+        <Link
+          className="secondary"
+          href="/"
+          target="_blank"
+          style={{ minHeight: 36, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: "0.85rem", borderRadius: 10 }}
+        >
+          <ShoppingBag size={15} /> Shop
+        </Link>
       </header>
 
-      {/* Main Content Area */}
-      <main className="owner-main" style={{ maxWidth: 1120, padding: "20px 16px" }}>
+      {/* Main Container */}
+      <main className="owner-main" style={{ maxWidth: 840, margin: "0 auto", padding: "16px" }}>
+        {/* Banner Alert */}
         {bannerMessage && (
           <div
             style={{
-              padding: "14px 18px",
+              padding: "12px 16px",
               borderRadius: 14,
-              marginBottom: 20,
+              marginBottom: 16,
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               fontWeight: 700,
+              fontSize: "0.92rem",
               background: bannerMessage.type === "success" ? "#dcf6e9" : bannerMessage.type === "error" ? "#fee2e2" : "#fef3c7",
               color: bannerMessage.type === "success" ? "#065f46" : bannerMessage.type === "error" ? "#991b1b" : "#92400e",
               border: `1px solid ${bannerMessage.type === "success" ? "#a7f3d0" : bannerMessage.type === "error" ? "#fecaca" : "#fde68a"}`,
@@ -524,13 +688,15 @@ export function OwnerDashboard() {
           </div>
         )}
 
-        {/* TAB 1: UPLOAD PRODUCT */}
+        {/* ========================================================= */}
+        {/* TAB 1: ADD / UPLOAD PRODUCT (Mobile Optimized) */}
+        {/* ========================================================= */}
         {activeTab === "upload" && (
           <div>
-            <div style={{ marginBottom: 20 }}>
-              <h1 style={{ fontSize: "1.8rem", margin: 0, color: "var(--ink)" }}>Upload New Product</h1>
-              <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: "0.95rem" }}>
-                Add product name, category, image, price and available sizes. Changes appear live on the shop immediately.
+            <div style={{ marginBottom: 16 }}>
+              <h1 style={{ fontSize: "1.6rem", margin: 0, color: "var(--ink)" }}>➕ Upload Product</h1>
+              <p style={{ margin: "2px 0 0", color: "var(--muted)", fontSize: "0.9rem" }}>
+                Add photo, name, category, price and sizes directly from your phone.
               </p>
             </div>
 
@@ -538,71 +704,41 @@ export function OwnerDashboard() {
               onSubmit={handleUploadProduct}
               style={{
                 background: "#fff",
-                borderRadius: 20,
+                borderRadius: 18,
                 border: "1px solid #e0dcd7",
-                padding: "24px",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
+                padding: "20px 16px",
+                boxShadow: "0 2px 14px rgba(0,0,0,0.03)",
                 display: "grid",
-                gap: 24,
+                gap: 20,
               }}
             >
               {/* 1. Category Selector */}
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <label style={{ fontWeight: 900, fontSize: "1rem", color: "var(--ink)" }}>
-                    1. Choose Category <span style={{ color: "var(--wine)" }}>*</span>
+                  <label style={{ fontWeight: 900, fontSize: "0.95rem", color: "var(--ink)" }}>
+                    1. Select Category <span style={{ color: "var(--wine)" }}>*</span>
                   </label>
                   <button
                     type="button"
-                    onClick={() => setShowAddCategory(!showAddCategory)}
+                    onClick={openAddCategoryModal}
                     style={{
                       background: "transparent",
                       border: "1px dashed var(--wine)",
                       color: "var(--wine)",
                       borderRadius: 8,
                       padding: "4px 10px",
-                      fontSize: "0.85rem",
+                      fontSize: "0.8rem",
                       fontWeight: 800,
                       display: "flex",
                       alignItems: "center",
                       gap: 4,
                     }}
                   >
-                    <FolderPlus size={14} /> + New Category
+                    <FolderPlus size={14} /> + New
                   </button>
                 </div>
 
-                {/* Inline New Category Form */}
-                {showAddCategory && (
-                  <div style={{ background: "#fbf8f4", border: "1.5px solid var(--gold)", borderRadius: 14, padding: 16, marginBottom: 14 }}>
-                    <h3 style={{ margin: "0 0 10px", fontSize: "0.95rem", color: "var(--ink)" }}>Create a New Category</h3>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                      <input
-                        placeholder="Category Name (e.g. Shirt, Night pant, Night shirt)"
-                        value={newCatNameEn}
-                        onChange={(e) => setNewCatNameEn(e.target.value)}
-                        style={{ height: 44, padding: "8px 12px", border: "1px solid #cbbcab", borderRadius: 10 }}
-                      />
-                      <input
-                        placeholder="Kannada Name (optional)"
-                        value={newCatNameKn}
-                        onChange={(e) => setNewCatNameKn(e.target.value)}
-                        style={{ height: 44, padding: "8px 12px", border: "1px solid #cbbcab", borderRadius: 10 }}
-                      />
-                    </div>
-                    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-                      <button type="button" onClick={handleCreateCategory} className="primary" style={{ minHeight: 38, padding: "6px 14px", fontSize: "0.88rem" }}>
-                        Save Category
-                      </button>
-                      <button type="button" onClick={() => setShowAddCategory(false)} className="secondary" style={{ minHeight: 38, padding: "6px 14px", fontSize: "0.88rem" }}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Category Chips Selection */}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {categories.map((cat) => {
                     const isSelected = selectedCategoryId === cat.id;
                     return (
@@ -611,24 +747,21 @@ export function OwnerDashboard() {
                         type="button"
                         onClick={() => setSelectedCategoryId(cat.id)}
                         style={{
-                          padding: "10px 16px",
-                          borderRadius: 12,
+                          padding: "8px 14px",
+                          borderRadius: 10,
                           border: isSelected ? "2px solid var(--wine)" : "1px solid #ddd6ce",
                           background: isSelected ? "#fff0f2" : "#fdfbf8",
                           color: isSelected ? "var(--wine)" : "var(--ink)",
                           fontWeight: isSelected ? 900 : 700,
-                          fontSize: "0.92rem",
+                          fontSize: "0.88rem",
                           display: "flex",
                           alignItems: "center",
-                          gap: 6,
+                          gap: 4,
                           cursor: "pointer",
                         }}
                       >
-                        {isSelected && <Check size={16} />}
+                        {isSelected && <Check size={14} />}
                         {cat.nameEn}
-                        {cat.nameKn && cat.nameKn !== cat.nameEn && (
-                          <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 400 }}>({cat.nameKn})</span>
-                        )}
                       </button>
                     );
                   })}
@@ -636,84 +769,79 @@ export function OwnerDashboard() {
               </div>
 
               {/* 2. Product Name & Price */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-                <div>
-                  <label style={{ display: "block", fontWeight: 900, fontSize: "1rem", marginBottom: 6, color: "var(--ink)" }}>
-                    2. Product Name (English) <span style={{ color: "var(--wine)" }}>*</span>
-                  </label>
+              <div>
+                <label style={{ display: "block", fontWeight: 900, fontSize: "0.95rem", marginBottom: 6, color: "var(--ink)" }}>
+                  2. Product Name (English) <span style={{ color: "var(--wine)" }}>*</span>
+                </label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Cotton Check Shirt, Men's Night Pant"
+                  value={nameEn}
+                  onChange={(e) => setNameEn(e.target.value)}
+                  style={{ width: "100%", height: 48, padding: "10px 14px", border: "1.5px solid #cbbcab", borderRadius: 12, fontSize: "1rem" }}
+                />
+                <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: 3, display: "block" }}>
+                  Auto-translates to Kannada when customers switch language.
+                </span>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontWeight: 900, fontSize: "0.95rem", marginBottom: 6, color: "var(--ink)" }}>
+                  3. Price (₹) <span style={{ color: "var(--wine)" }}>*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 14, top: 12, fontSize: "1.2rem", fontWeight: 900, color: "var(--wine)" }}>₹</span>
                   <input
                     required
-                    type="text"
-                    placeholder="e.g. Cotton Check Shirt, Men's Night Pant"
-                    value={nameEn}
-                    onChange={(e) => setNameEn(e.target.value)}
-                    style={{ width: "100%", height: 50, padding: "10px 14px", border: "1.5px solid #cbbcab", borderRadius: 12, fontSize: "1rem" }}
+                    type="number"
+                    min="1"
+                    placeholder="299"
+                    value={priceRupees}
+                    onChange={(e) => setPriceRupees(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: 48,
+                      paddingLeft: 34,
+                      paddingRight: 14,
+                      border: "1.5px solid #cbbcab",
+                      borderRadius: 12,
+                      fontSize: "1.1rem",
+                      fontWeight: 800,
+                    }}
                   />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontWeight: 900, fontSize: "1rem", marginBottom: 6, color: "var(--ink)" }}>
-                    Product Name (Kannada) <span style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 400 }}>(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. ಕಾಟನ್ ಶರ್ಟ್, ನೈಟ್ ಪ್ಯಾಂಟ್"
-                    value={nameKn}
-                    onChange={(e) => setNameKn(e.target.value)}
-                    style={{ width: "100%", height: 50, padding: "10px 14px", border: "1.5px solid #cbbcab", borderRadius: 12, fontSize: "1rem" }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontWeight: 900, fontSize: "1rem", marginBottom: 6, color: "var(--ink)" }}>
-                    Price (₹) <span style={{ color: "var(--wine)" }}>*</span>
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <span style={{ position: "absolute", left: 14, top: 12, fontSize: "1.2rem", fontWeight: 900, color: "var(--wine)" }}>₹</span>
-                    <input
-                      required
-                      type="number"
-                      min="1"
-                      placeholder="299"
-                      value={priceRupees}
-                      onChange={(e) => setPriceRupees(e.target.value)}
-                      style={{ width: "100%", height: 50, paddingLeft: 34, paddingRight: 14, border: "1.5px solid #cbbcab", borderRadius: 12, fontSize: "1.1rem", fontWeight: 800 }}
-                    />
-                  </div>
                 </div>
               </div>
 
-              {/* 3. Product Photo Upload */}
+              {/* 4. Product Photo Upload (Camera / File) */}
               <div>
-                <label style={{ display: "block", fontWeight: 900, fontSize: "1rem", marginBottom: 8, color: "var(--ink)" }}>
-                  3. Product Photo / Image
+                <label style={{ display: "block", fontWeight: 900, fontSize: "0.95rem", marginBottom: 8, color: "var(--ink)" }}>
+                  4. Product Photo
                 </label>
-                <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
                   <label
                     style={{
                       flex: 1,
-                      minWidth: 260,
-                      minHeight: 120,
+                      minHeight: 100,
                       border: "2px dashed #cbbcab",
-                      borderRadius: 16,
+                      borderRadius: 14,
                       background: "#faf7f2",
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
                       justifyContent: "center",
-                      padding: 16,
+                      padding: 12,
                       cursor: "pointer",
                       textAlign: "center",
                     }}
                   >
-                    <Upload size={28} color="var(--wine)" />
-                    <span style={{ marginTop: 6, fontWeight: 800, color: "var(--ink)" }}>Click to take photo or choose file</span>
-                    <span style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 2 }}>Supports JPG, PNG, WEBP from mobile or computer</span>
+                    <Camera size={26} color="var(--wine)" />
+                    <span style={{ marginTop: 4, fontWeight: 800, fontSize: "0.9rem", color: "var(--ink)" }}>Take photo or pick image</span>
                     <input type="file" accept="image/*" onChange={handleProductImageChange} style={{ display: "none" }} />
                   </label>
 
                   {imagePreview ? (
-                    <div style={{ position: "relative", width: 120, height: 120, borderRadius: 14, overflow: "hidden", border: "2px solid var(--wine)", background: "#eee" }}>
+                    <div style={{ position: "relative", width: 100, height: 100, borderRadius: 12, overflow: "hidden", border: "2px solid var(--wine)", flexShrink: 0 }}>
                       <Image src={imagePreview} alt="Preview" fill style={{ objectFit: "cover" }} />
                       <button
                         type="button"
@@ -729,36 +857,34 @@ export function OwnerDashboard() {
                           color: "#fff",
                           border: 0,
                           borderRadius: "50%",
-                          width: 24,
-                          height: 24,
+                          width: 22,
+                          height: 22,
                           display: "grid",
                           placeItems: "center",
-                          cursor: "pointer",
                         }}
                       >
-                        <X size={14} />
+                        <X size={13} />
                       </button>
                     </div>
                   ) : (
-                    <div style={{ width: 120, height: 120, borderRadius: 14, border: "1px dashed #d5ccc0", background: "#f7f3ee", display: "grid", placeItems: "center", color: "var(--muted)" }}>
-                      <ImageIcon size={32} />
+                    <div style={{ width: 100, height: 100, borderRadius: 12, border: "1px dashed #d5ccc0", background: "#f7f3ee", display: "grid", placeItems: "center", color: "var(--muted)", flexShrink: 0 }}>
+                      <ImageIcon size={28} />
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* 4. Sizes and Quantity / Stock */}
+              {/* 5. Sizes and Stock Quantities */}
               <div>
-                <label style={{ display: "block", fontWeight: 900, fontSize: "1rem", marginBottom: 6, color: "var(--ink)" }}>
-                  4. Available Sizes & Stock Quantity <span style={{ color: "var(--wine)" }}>*</span>
+                <label style={{ display: "block", fontWeight: 900, fontSize: "0.95rem", marginBottom: 6, color: "var(--ink)" }}>
+                  5. Sizes & Stock Quantity <span style={{ color: "var(--wine)" }}>*</span>
                 </label>
-                <p style={{ margin: "0 0 10px", fontSize: "0.85rem", color: "var(--muted)" }}>
-                  Tap the sizes you have in stock, then adjust the quantity for each size:
-                </p>
+                <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: 8 }}>
+                  Tap sizes you have, then set stock (customers only see available sizes, not numbers):
+                </div>
 
-                {/* Standard Size Chips */}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 800, alignSelf: "center", color: "var(--muted)", marginRight: 4 }}>Standard:</span>
+                {/* Standard Sizes */}
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
                   {STANDARD_SIZES.map((size) => {
                     const active = sizeVariants.some((v) => v.size === size);
                     return (
@@ -767,36 +893,8 @@ export function OwnerDashboard() {
                         type="button"
                         onClick={() => toggleSize(size)}
                         style={{
-                          minWidth: 46,
+                          minWidth: 44,
                           height: 38,
-                          borderRadius: 10,
-                          border: active ? "2px solid var(--wine)" : "1px solid #d5ccc0",
-                          background: active ? "var(--wine)" : "#fff",
-                          color: active ? "#fff" : "var(--ink)",
-                          fontWeight: 900,
-                          fontSize: "0.88rem",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {size}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Pant Waist Sizes */}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 800, alignSelf: "center", color: "var(--muted)", marginRight: 4 }}>Waist:</span>
-                  {PANT_SIZES.map((size) => {
-                    const active = sizeVariants.some((v) => v.size === size);
-                    return (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => toggleSize(size)}
-                        style={{
-                          minWidth: 42,
-                          height: 36,
                           borderRadius: 8,
                           border: active ? "2px solid var(--wine)" : "1px solid #d5ccc0",
                           background: active ? "var(--wine)" : "#fff",
@@ -812,10 +910,38 @@ export function OwnerDashboard() {
                   })}
                 </div>
 
+                {/* Pant Waist Sizes */}
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
+                  <span style={{ fontSize: "0.75rem", alignSelf: "center", color: "var(--muted)", fontWeight: 800 }}>Waist:</span>
+                  {PANT_SIZES.map((size) => {
+                    const active = sizeVariants.some((v) => v.size === size);
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => toggleSize(size)}
+                        style={{
+                          minWidth: 40,
+                          height: 34,
+                          borderRadius: 7,
+                          border: active ? "2px solid var(--wine)" : "1px solid #d5ccc0",
+                          background: active ? "var(--wine)" : "#fff",
+                          color: active ? "#fff" : "var(--ink)",
+                          fontWeight: 900,
+                          fontSize: "0.82rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {size}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {/* Custom Size Input */}
-                <div style={{ display: "flex", gap: 8, maxWidth: 300, marginBottom: 16 }}>
+                <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                   <input
-                    placeholder="Custom size (e.g. 42, XXL, Kid 10)"
+                    placeholder="Custom size (e.g. 42, XXL, 30-32)"
                     value={customSizeInput}
                     onChange={(e) => setCustomSizeInput(e.target.value)}
                     style={{ height: 38, padding: "6px 10px", border: "1px solid #cbbcab", borderRadius: 8, fontSize: "0.85rem", flex: 1 }}
@@ -825,42 +951,39 @@ export function OwnerDashboard() {
                   </button>
                 </div>
 
-                {/* Selected Sizes Stock List */}
+                {/* Size list with stock counters */}
                 {sizeVariants.length > 0 ? (
-                  <div style={{ background: "#fbf9f6", border: "1px solid #e5dfd6", borderRadius: 14, padding: 14 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+                  <div style={{ background: "#fbf9f6", border: "1px solid #e5dfd6", borderRadius: 12, padding: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
                       {sizeVariants.map((item) => (
                         <div
                           key={item.size}
                           style={{
                             background: "#fff",
                             border: "1px solid #ded6cc",
-                            borderRadius: 10,
-                            padding: "10px 12px",
+                            borderRadius: 8,
+                            padding: "6px 10px",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
-                            gap: 8,
                           }}
                         >
-                          <div>
-                            <strong style={{ fontSize: "1rem", color: "var(--wine)" }}>Size {item.size}</strong>
-                            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Stock qty</div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <strong style={{ fontSize: "0.9rem", color: "var(--wine)" }}>{item.size}</strong>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Qty:</span>
                             <input
                               type="number"
                               min="0"
                               value={item.stock}
                               onChange={(e) => updateSizeStock(item.size, parseInt(e.target.value) || 0)}
-                              style={{ width: 60, height: 36, textAlign: "center", border: "1.5px solid #cbbcab", borderRadius: 8, fontWeight: 900 }}
+                              style={{ width: 50, height: 32, textAlign: "center", border: "1.5px solid #cbbcab", borderRadius: 6, fontWeight: 900 }}
                             />
                             <button
                               type="button"
                               onClick={() => toggleSize(item.size)}
-                              style={{ background: "transparent", border: 0, color: "#991b1b", padding: 2, cursor: "pointer" }}
+                              style={{ background: "transparent", border: 0, color: "#991b1b", padding: 2 }}
                             >
-                              <X size={16} />
+                              <X size={14} />
                             </button>
                           </div>
                         </div>
@@ -868,169 +991,172 @@ export function OwnerDashboard() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ padding: "12px", background: "#fef2f2", color: "#991b1b", borderRadius: 10, fontSize: "0.88rem", fontWeight: 700 }}>
-                    ⚠️ Please select at least one size above.
+                  <div style={{ padding: "10px", background: "#fef2f2", color: "#991b1b", borderRadius: 8, fontSize: "0.85rem", fontWeight: 700 }}>
+                    ⚠️ Please select at least one size.
                   </div>
                 )}
               </div>
 
               {/* Submit Button */}
-              <div style={{ borderTop: "1px solid #eee6dc", paddingTop: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="primary"
-                  style={{ minHeight: 52, padding: "12px 32px", fontSize: "1.1rem", borderRadius: 14, display: "inline-flex", alignItems: "center", gap: 8 }}
-                >
-                  <Upload size={20} />
-                  {isSubmitting ? "Uploading & Publishing…" : "Publish Product to Shop"}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="primary"
+                style={{
+                  minHeight: 52,
+                  width: "100%",
+                  fontSize: "1.1rem",
+                  borderRadius: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <Upload size={20} />
+                {isSubmitting ? "Uploading Product…" : "Publish Product to Shop"}
+              </button>
             </form>
           </div>
         )}
 
-        {/* TAB 2: PRODUCTS CATALOG */}
+        {/* ========================================================= */}
+        {/* TAB 2: PRODUCTS LIST (Visual, Mobile Cards, Quick Stock) */}
+        {/* ========================================================= */}
         {activeTab === "products" && (
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div>
-                <h1 style={{ fontSize: "1.8rem", margin: 0, color: "var(--ink)" }}>Products Catalog</h1>
-                <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: "0.95rem" }}>
-                  All products available on the mobile customer website ({products.length} items)
+                <h1 style={{ fontSize: "1.5rem", margin: 0, color: "var(--ink)" }}>📦 All Products ({products.length})</h1>
+                <p style={{ margin: "2px 0 0", color: "var(--muted)", fontSize: "0.85rem" }}>
+                  Adjust stock with + / -, edit details, or hide from shop.
                 </p>
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={loadCatalog} className="secondary" style={{ minHeight: 42, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6 }}>
-                  <RefreshCw size={16} /> Reload
-                </button>
-                <button onClick={() => setActiveTab("upload")} className="primary" style={{ minHeight: 42, padding: "8px 16px", display: "flex", alignItems: "center", gap: 6 }}>
-                  <Plus size={18} /> Add New Product
-                </button>
-              </div>
+              <button onClick={() => setActiveTab("upload")} className="primary" style={{ minHeight: 38, padding: "6px 12px", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: 4 }}>
+                <Plus size={16} /> Add
+              </button>
             </div>
 
             {catalogLoading ? (
               <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Loading products…</div>
             ) : products.length === 0 ? (
-              <div style={{ padding: 40, textAlign: "center", background: "#fff", borderRadius: 16, border: "1px solid #eee" }}>
-                <h2>No products found</h2>
-                <p>Click &ldquo;Add New Product&rdquo; to upload your first shirt or pant.</p>
-                <button onClick={() => setActiveTab("upload")} className="primary" style={{ marginTop: 12 }}>
-                  + Upload Product
+              <div style={{ padding: 30, textAlign: "center", background: "#fff", borderRadius: 16, border: "1px solid #eee" }}>
+                <h3>No products yet</h3>
+                <button onClick={() => setActiveTab("upload")} className="primary" style={{ marginTop: 10 }}>
+                  + Upload First Product
                 </button>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+              <div style={{ display: "grid", gap: 12 }}>
                 {products.map((product) => {
                   const cat = categories.find((c) => c.id === product.categoryId);
                   const totalStock = product.variants.reduce((sum, v) => sum + v.stockOnHand, 0);
-                  const totalReserved = product.variants.reduce((sum, v) => sum + v.reservedQuantity, 0);
-                  const available = totalStock - totalReserved;
 
                   return (
                     <div
                       key={product.id}
                       style={{
                         background: "#fff",
-                        borderRadius: 18,
+                        borderRadius: 16,
                         border: product.active ? "1px solid #e0dcd7" : "1.5px dashed #c0b8af",
-                        overflow: "hidden",
-                        display: "flex",
-                        flexDirection: "column",
+                        padding: "12px",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
                         opacity: product.active ? 1 : 0.65,
-                        boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
                       }}
                     >
-                      {/* Thumbnail & Badges */}
-                      <div style={{ position: "relative", height: 160, background: "#f2ece4" }}>
-                        <Image src={product.imageUrl} alt={product.nameEn} fill style={{ objectFit: "cover" }} />
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: 10,
-                            left: 10,
-                            background: "rgba(255,255,255,0.92)",
-                            padding: "4px 8px",
-                            borderRadius: 8,
-                            fontSize: "0.75rem",
-                            fontWeight: 800,
-                            color: "var(--wine)",
-                          }}
-                        >
-                          {cat?.nameEn ?? "Clothing"}
-                        </span>
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: 10,
-                            right: 10,
-                            background: available > 0 ? "#17724c" : "#991b1b",
-                            color: "#fff",
-                            padding: "4px 8px",
-                            borderRadius: 8,
-                            fontSize: "0.75rem",
-                            fontWeight: 900,
-                          }}
-                        >
-                          {available > 0 ? `${available} in stock` : "Sold Out"}
-                        </span>
+                      {/* Top Row: Photo + Title + Price */}
+                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                        <div style={{ position: "relative", width: 72, height: 72, borderRadius: 12, overflow: "hidden", background: "#f2ece4", flexShrink: 0 }}>
+                          <Image src={product.imageUrl} alt={product.nameEn} fill style={{ objectFit: "cover" }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                            <span style={{ fontSize: "0.72rem", fontWeight: 900, background: "#f5eee7", color: "var(--wine)", padding: "2px 6px", borderRadius: 6 }}>
+                              {cat?.nameEn ?? "Category"}
+                            </span>
+                            {!product.active && (
+                              <span style={{ fontSize: "0.72rem", fontWeight: 800, background: "#fee2e2", color: "#991b1b", padding: "2px 6px", borderRadius: 6 }}>
+                                Hidden
+                              </span>
+                            )}
+                          </div>
+                          <h3 style={{ margin: 0, fontSize: "1rem", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {product.nameEn}
+                          </h3>
+                          <div style={{ fontSize: "1.1rem", fontWeight: 900, color: "var(--wine-dark)", marginTop: 2 }}>
+                            {money(product.pricePaise)}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Info & Sizes */}
-                      <div style={{ padding: 14, display: "flex", flexDirection: "column", flex: 1 }}>
-                        <h3 style={{ margin: "0 0 2px", fontSize: "1.1rem", color: "var(--ink)" }}>{product.nameEn}</h3>
-                        {product.nameKn && product.nameKn !== product.nameEn && (
-                          <div style={{ color: "var(--muted)", fontSize: "0.82rem", marginBottom: 6 }}>{product.nameKn}</div>
-                        )}
-                        <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "var(--wine-dark)", margin: "4px 0 10px" }}>
-                          {money(product.pricePaise)}
+                      {/* Middle: Sizes & Quick Stock Adjusters */}
+                      <div style={{ marginTop: 10, background: "#faf7f2", borderRadius: 10, padding: "8px 10px" }}>
+                        <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--muted)", marginBottom: 6 }}>
+                          Stock on Hand (Total: {totalStock}):
                         </div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {product.variants.map((v) => (
+                            <div
+                              key={v.id}
+                              style={{
+                                background: "#fff",
+                                border: "1px solid #ddd6cc",
+                                borderRadius: 8,
+                                padding: "4px 8px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                              }}
+                            >
+                              <strong style={{ fontSize: "0.85rem", color: "var(--wine)" }}>{v.size}</strong>
+                              <span style={{ fontSize: "0.85rem", fontWeight: 900 }}>{v.stockOnHand}</span>
+                              <div style={{ display: "flex", gap: 2 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => adjustQuickStock(product, v.id, -1)}
+                                  style={{ width: 22, height: 22, border: "1px solid #d5ccc0", borderRadius: 4, background: "#f8f5f0", display: "grid", placeItems: "center" }}
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => adjustQuickStock(product, v.id, 1)}
+                                  style={{ width: 22, height: 22, border: "1px solid #d5ccc0", borderRadius: 4, background: "#f8f5f0", display: "grid", placeItems: "center" }}
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-                        {/* Sizes Pill list */}
-                        <div style={{ marginTop: "auto", borderTop: "1px solid #eee7dd", paddingTop: 10 }}>
-                          <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--muted)", marginBottom: 6 }}>
-                            Sizes & Stock:
-                          </div>
-                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                            {product.variants.map((v) => (
-                              <span
-                                key={v.id}
-                                style={{
-                                  background: "#f4ede4",
-                                  border: "1px solid #e0d7cb",
-                                  padding: "2px 6px",
-                                  borderRadius: 6,
-                                  fontSize: "0.76rem",
-                                  fontWeight: 800,
-                                }}
-                              >
-                                {v.size}: {v.stockOnHand - v.reservedQuantity}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div style={{ display: "flex", gap: 8, marginTop: 12, borderTop: "1px solid #eee7dd", paddingTop: 10 }}>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleProductActive(product)}
-                            className="secondary"
-                            style={{ flex: 1, minHeight: 36, padding: "4px 8px", fontSize: "0.8rem", fontWeight: 800 }}
-                          >
-                            {product.active ? "Hide" : "Show"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteProduct(product)}
-                            className="danger"
-                            style={{ minHeight: 36, padding: "4px 10px", fontSize: "0.8rem", display: "grid", placeItems: "center" }}
-                            title="Delete product"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
+                      {/* Bottom Row: Edit / Hide / Delete Buttons */}
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        <button
+                          type="button"
+                          onClick={() => openEditProduct(product)}
+                          className="secondary"
+                          style={{ flex: 1, minHeight: 36, padding: "4px 8px", fontSize: "0.82rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+                        >
+                          <Edit2 size={14} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleProductActive(product)}
+                          className="secondary"
+                          style={{ minHeight: 36, padding: "4px 10px", fontSize: "0.82rem", fontWeight: 800, display: "flex", alignItems: "center", gap: 4 }}
+                        >
+                          {product.active ? <><EyeOff size={14} /> Hide</> : <><Eye size={14} /> Show</>}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(product)}
+                          className="danger"
+                          style={{ minHeight: 36, padding: "4px 10px", fontSize: "0.82rem", display: "grid", placeItems: "center" }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -1040,76 +1166,24 @@ export function OwnerDashboard() {
           </div>
         )}
 
-        {/* TAB 3: CATEGORIES */}
+        {/* ========================================================= */}
+        {/* TAB 3: CATEGORIES LIST & CRUD */}
+        {/* ========================================================= */}
         {activeTab === "categories" && (
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div>
-                <h1 style={{ fontSize: "1.8rem", margin: 0, color: "var(--ink)" }}>Product Categories</h1>
-                <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: "0.95rem" }}>
-                  Categories displayed on the shop home page (e.g. Shirt, Night pant, Night shirt)
+                <h1 style={{ fontSize: "1.5rem", margin: 0, color: "var(--ink)" }}>📁 Categories ({categories.length})</h1>
+                <p style={{ margin: "2px 0 0", color: "var(--muted)", fontSize: "0.85rem" }}>
+                  Clothing categories shown on shop home page (e.g. Shirt, Night pant, Night shirt).
                 </p>
               </div>
-              <button onClick={() => setShowAddCategory(true)} className="primary" style={{ minHeight: 42, padding: "8px 16px", display: "flex", alignItems: "center", gap: 6 }}>
-                <Plus size={18} /> Add Category
+              <button onClick={openAddCategoryModal} className="primary" style={{ minHeight: 38, padding: "6px 12px", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: 4 }}>
+                <Plus size={16} /> Add Category
               </button>
             </div>
 
-            {/* Quick Add Form */}
-            {showAddCategory && (
-              <form
-                onSubmit={handleCreateCategory}
-                style={{ background: "#fff", border: "1.5px solid var(--wine)", borderRadius: 16, padding: 20, marginBottom: 20 }}
-              >
-                <h3 style={{ margin: "0 0 14px", fontSize: "1.1rem" }}>Add New Category</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 800, marginBottom: 4 }}>English Name *</label>
-                    <input
-                      required
-                      placeholder="e.g. Shirt, Night pant, Night shirt"
-                      value={newCatNameEn}
-                      onChange={(e) => setNewCatNameEn(e.target.value)}
-                      style={{ width: "100%", height: 44, padding: "8px 12px", border: "1px solid #cbbcab", borderRadius: 10 }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 800, marginBottom: 4 }}>Kannada Name (optional)</label>
-                    <input
-                      placeholder="e.g. ಶರ್ಟ್, ನೈಟ್ ಪ್ಯಾಂಟ್"
-                      value={newCatNameKn}
-                      onChange={(e) => setNewCatNameKn(e.target.value)}
-                      style={{ width: "100%", height: 44, padding: "8px 12px", border: "1px solid #cbbcab", borderRadius: 10 }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 800, marginBottom: 4 }}>Category Picture (optional)</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setNewCatImageFile(file);
-                      }
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button type="submit" className="primary" style={{ minHeight: 40, padding: "8px 18px" }}>
-                    Save Category
-                  </button>
-                  <button type="button" onClick={() => setShowAddCategory(false)} className="secondary" style={{ minHeight: 40, padding: "8px 16px" }}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
+            <div style={{ display: "grid", gap: 10 }}>
               {categories.map((cat) => {
                 const count = products.filter((p) => p.categoryId === cat.id).length;
                 return (
@@ -1118,22 +1192,43 @@ export function OwnerDashboard() {
                     style={{
                       background: "#fff",
                       border: "1px solid #e0dcd7",
-                      borderRadius: 16,
-                      padding: 16,
+                      borderRadius: 14,
+                      padding: "12px",
                       display: "flex",
                       alignItems: "center",
-                      gap: 14,
+                      justifyContent: "space-between",
+                      gap: 12,
                     }}
                   >
-                    <div style={{ position: "relative", width: 56, height: 56, borderRadius: 12, overflow: "hidden", background: "#f2ece4", flexShrink: 0 }}>
-                      <Image src={cat.imageUrl} alt={cat.nameEn} fill style={{ objectFit: "cover" }} />
-                    </div>
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: "1rem", color: "var(--ink)" }}>{cat.nameEn}</h4>
-                      <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>{cat.nameKn}</div>
-                      <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--wine)", marginTop: 2 }}>
-                        {count} {count === 1 ? "product" : "products"}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ position: "relative", width: 50, height: 50, borderRadius: 10, overflow: "hidden", background: "#f2ece4", flexShrink: 0 }}>
+                        <Image src={cat.imageUrl} alt={cat.nameEn} fill style={{ objectFit: "cover" }} />
                       </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: "1rem", color: "var(--ink)" }}>{cat.nameEn}</h4>
+                        <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--wine)", marginTop: 2 }}>
+                          {count} {count === 1 ? "product" : "products"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => openEditCategoryModal(cat)}
+                        className="secondary"
+                        style={{ minHeight: 34, padding: "4px 10px", fontSize: "0.8rem", fontWeight: 800, display: "flex", alignItems: "center", gap: 4 }}
+                      >
+                        <Edit2 size={13} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCategory(cat)}
+                        className="danger"
+                        style={{ minHeight: 34, padding: "4px 8px", display: "grid", placeItems: "center" }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </div>
                 );
@@ -1142,32 +1237,34 @@ export function OwnerDashboard() {
           </div>
         )}
 
+        {/* ========================================================= */}
         {/* TAB 4: ORDERS QUEUE */}
+        {/* ========================================================= */}
         {activeTab === "orders" && (
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div>
-                <h1 style={{ fontSize: "1.8rem", margin: 0, color: "var(--ink)" }}>Shop Floor & Orders</h1>
-                <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: "0.95rem" }}>
-                  {connected ? "● Live customer orders connected" : "○ Reconnecting to realtime feed"}
+                <h1 style={{ fontSize: "1.5rem", margin: 0, color: "var(--ink)" }}>📋 Live Orders</h1>
+                <p style={{ margin: "2px 0 0", color: "var(--muted)", fontSize: "0.85rem" }}>
+                  {connected ? "● Live orders connected" : "○ Reconnecting..."}
                 </p>
               </div>
-              <button onClick={refreshOrders} className="secondary" style={{ minHeight: 42, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6 }}>
-                <RefreshCw size={16} /> Reload Orders
+              <button onClick={refreshOrders} className="secondary" style={{ minHeight: 36, padding: "6px 12px", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: 4 }}>
+                <RefreshCw size={15} /> Reload
               </button>
             </div>
 
-            <section className="metric-grid" style={{ marginBottom: 18 }}>
-              <div className="metric"><span>NEW ORDERS</span><strong>{metrics.placed}</strong></div>
+            <section className="metric-grid" style={{ marginBottom: 14 }}>
+              <div className="metric"><span>NEW</span><strong>{metrics.placed}</strong></div>
               <div className="metric"><span>PREPARING</span><strong>{metrics.preparing}</strong></div>
               <div className="metric"><span>READY</span><strong>{metrics.ready}</strong></div>
-              <div className="metric"><span>COLLECTED REVENUE</span><strong>{money(metrics.revenue)}</strong></div>
+              <div className="metric"><span>TODAY REVENUE</span><strong>{money(metrics.revenue)}</strong></div>
             </section>
 
             <div className="dashboard-grid">
               <section className="panel">
                 <div className="panel-title">
-                  <h2><Bell size={18} /> Incoming Orders</h2>
+                  <h2><Bell size={16} /> Incoming Orders</h2>
                   <span>{orders.filter((o) => activeStatuses.includes(o.status)).length} active</span>
                 </div>
                 <div className="order-list">
@@ -1195,7 +1292,7 @@ export function OwnerDashboard() {
                       <div>
                         <p className="eyebrow">TOKEN {selectedOrder.token}</p>
                         <h2>{selectedOrder.customerName}</h2>
-                        <small>{selectedOrder.customerPhone || "No phone"} · {selectedOrder.source}</small>
+                        <small>{selectedOrder.customerPhone || "No phone"}</small>
                       </div>
                       <span className={`status-pill ${selectedOrder.status}`}>{statusLabel[selectedOrder.status].en}</span>
                     </div>
@@ -1233,7 +1330,7 @@ export function OwnerDashboard() {
                       ))}
                       {["accepted", "preparing", "ready", "collected"].includes(selectedOrder.status) && (
                         <Link className="secondary" href={`/owner/receipt/${selectedOrder.id}`}>
-                          <Printer size={17} /> Print receipt
+                          <Printer size={16} /> Print
                         </Link>
                       )}
                     </div>
@@ -1246,6 +1343,368 @@ export function OwnerDashboard() {
           </div>
         )}
       </main>
+
+      {/* ========================================================= */}
+      {/* EDIT PRODUCT MODAL / DRAWER */}
+      {/* ========================================================= */}
+      {editingProduct && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              width: "100%",
+              maxWidth: 600,
+              maxHeight: "90dvh",
+              overflowY: "auto",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              padding: "20px 16px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: "1.3rem" }}>Edit Product</h2>
+              <button
+                type="button"
+                onClick={() => setEditingProduct(null)}
+                style={{ background: "transparent", border: 0, padding: 4, cursor: "pointer" }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProductEdit} style={{ display: "grid", gap: 16 }}>
+              <div>
+                <label style={{ display: "block", fontWeight: 800, fontSize: "0.9rem", marginBottom: 4 }}>Product Name (English)</label>
+                <input
+                  required
+                  value={editNameEn}
+                  onChange={(e) => setEditNameEn(e.target.value)}
+                  style={{ width: "100%", height: 44, padding: "8px 12px", border: "1.5px solid #cbbcab", borderRadius: 10 }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontWeight: 800, fontSize: "0.9rem", marginBottom: 4 }}>Category</label>
+                  <select
+                    value={editCategoryId}
+                    onChange={(e) => setEditCategoryId(e.target.value)}
+                    style={{ width: "100%", height: 44, padding: "8px 12px", border: "1.5px solid #cbbcab", borderRadius: 10 }}
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.nameEn}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontWeight: 800, fontSize: "0.9rem", marginBottom: 4 }}>Price (₹)</label>
+                  <input
+                    required
+                    type="number"
+                    value={editPriceRupees}
+                    onChange={(e) => setEditPriceRupees(e.target.value)}
+                    style={{ width: "100%", height: 44, padding: "8px 12px", border: "1.5px solid #cbbcab", borderRadius: 10, fontWeight: 800 }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontWeight: 800, fontSize: "0.9rem", marginBottom: 4 }}>Replace Photo (optional)</label>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setEditImageFile(file);
+                        setEditImagePreview(URL.createObjectURL(file));
+                      }
+                    }}
+                  />
+                  {editImagePreview && (
+                    <div style={{ position: "relative", width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
+                      <Image src={editImagePreview} alt="Preview" fill style={{ objectFit: "cover" }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sizes and Stock in Edit modal */}
+              <div>
+                <label style={{ display: "block", fontWeight: 800, fontSize: "0.9rem", marginBottom: 6 }}>Sizes and Stock Quantity</label>
+                <div style={{ display: "grid", gap: 8, background: "#fbf9f6", padding: 10, borderRadius: 10 }}>
+                  {editVariants.map((v) => (
+                    <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}>
+                      <strong>Size {v.size}</strong>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Stock:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={v.stock}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            setEditVariants(editVariants.map((item) => (item.id === v.id ? { ...item, stock: val } : item)));
+                          }}
+                          style={{ width: 60, height: 32, textAlign: "center", border: "1.5px solid #cbbcab", borderRadius: 6, fontWeight: 900 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditVariants(editVariants.filter((item) => item.id !== v.id))}
+                          style={{ background: "transparent", border: 0, color: "#991b1b", padding: 2 }}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add size inside edit modal */}
+                  <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                    <input
+                      placeholder="Add another size (e.g. XXL, 38)"
+                      value={editCustomSize}
+                      onChange={(e) => setEditCustomSize(e.target.value)}
+                      style={{ height: 34, padding: "4px 8px", border: "1px solid #cbbcab", borderRadius: 6, fontSize: "0.85rem", flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = editCustomSize.trim();
+                        if (trimmed && !editVariants.some((v) => v.size.toLowerCase() === trimmed.toLowerCase())) {
+                          setEditVariants([...editVariants, { id: crypto.randomUUID(), size: trimmed, stock: 10, colorEn: "Standard" }]);
+                          setEditCustomSize("");
+                        }
+                      }}
+                      className="secondary"
+                      style={{ minHeight: 34, padding: "4px 10px", fontSize: "0.82rem" }}
+                    >
+                      + Add
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                <button type="submit" disabled={isSavingEdit} className="primary" style={{ flex: 1, minHeight: 46 }}>
+                  {isSavingEdit ? "Saving…" : "Save Changes"}
+                </button>
+                <button type="button" onClick={() => setEditingProduct(null)} className="secondary" style={{ minHeight: 46, padding: "8px 16px" }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* ADD / EDIT CATEGORY MODAL */}
+      {/* ========================================================= */}
+      {showAddCategory && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              width: "100%",
+              maxWidth: 440,
+              borderRadius: 18,
+              padding: "20px",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h2 style={{ margin: 0, fontSize: "1.2rem" }}>{editingCategory ? "Edit Category" : "Add Category"}</h2>
+              <button
+                type="button"
+                onClick={() => setShowAddCategory(false)}
+                style={{ background: "transparent", border: 0, padding: 4, cursor: "pointer" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCategory} style={{ display: "grid", gap: 14 }}>
+              <div>
+                <label style={{ display: "block", fontWeight: 800, fontSize: "0.88rem", marginBottom: 4 }}>
+                  Category Name (English) *
+                </label>
+                <input
+                  required
+                  placeholder="e.g. Shirt, Night pant, Night shirt, Dhoti"
+                  value={catNameEn}
+                  onChange={(e) => setCatNameEn(e.target.value)}
+                  style={{ width: "100%", height: 44, padding: "8px 12px", border: "1.5px solid #cbbcab", borderRadius: 10, fontSize: "0.95rem" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontWeight: 800, fontSize: "0.88rem", marginBottom: 4 }}>
+                  Category Photo (optional)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setCatImageFile(file);
+                      setCatImagePreview(URL.createObjectURL(file));
+                    }
+                  }}
+                />
+                {catImagePreview && (
+                  <div style={{ position: "relative", width: 44, height: 44, borderRadius: 8, overflow: "hidden", marginTop: 8 }}>
+                    <Image src={catImagePreview} alt="Preview" fill style={{ objectFit: "cover" }} />
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                <button type="submit" className="primary" style={{ flex: 1, minHeight: 44 }}>
+                  Save Category
+                </button>
+                <button type="button" onClick={() => setShowAddCategory(false)} className="secondary" style={{ minHeight: 44, padding: "8px 14px" }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MOBILE BOTTOM NAVIGATION BAR (Sticky) */}
+      {/* ========================================================= */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 40,
+          background: "#fff",
+          borderTop: "1px solid #ded9d4",
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          padding: "6px 4px calc(6px + env(safe-area-inset-bottom, 0px))",
+          boxShadow: "0 -4px 16px rgba(0,0,0,0.06)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab("upload")}
+          style={{
+            background: "transparent",
+            border: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 3,
+            padding: "6px 2px",
+            color: activeTab === "upload" ? "var(--wine)" : "#746b64",
+            fontWeight: activeTab === "upload" ? 900 : 600,
+            fontSize: "0.74rem",
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: activeTab === "upload" ? "#fce8eb" : "transparent", display: "grid", placeItems: "center" }}>
+            <Plus size={20} />
+          </div>
+          <span>Add</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("products")}
+          style={{
+            background: "transparent",
+            border: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 3,
+            padding: "6px 2px",
+            color: activeTab === "products" ? "var(--wine)" : "#746b64",
+            fontWeight: activeTab === "products" ? 900 : 600,
+            fontSize: "0.74rem",
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: activeTab === "products" ? "#fce8eb" : "transparent", display: "grid", placeItems: "center" }}>
+            <Package size={18} />
+          </div>
+          <span>Products</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("categories")}
+          style={{
+            background: "transparent",
+            border: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 3,
+            padding: "6px 2px",
+            color: activeTab === "categories" ? "var(--wine)" : "#746b64",
+            fontWeight: activeTab === "categories" ? 900 : 600,
+            fontSize: "0.74rem",
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: activeTab === "categories" ? "#fce8eb" : "transparent", display: "grid", placeItems: "center" }}>
+            <Layers size={18} />
+          </div>
+          <span>Categories</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("orders")}
+          style={{
+            background: "transparent",
+            border: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 3,
+            padding: "6px 2px",
+            color: activeTab === "orders" ? "var(--wine)" : "#746b64",
+            fontWeight: activeTab === "orders" ? 900 : 600,
+            fontSize: "0.74rem",
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: activeTab === "orders" ? "#fce8eb" : "transparent", display: "grid", placeItems: "center" }}>
+            <Bell size={18} />
+          </div>
+          <span>Orders</span>
+        </button>
+      </div>
     </div>
   );
 }

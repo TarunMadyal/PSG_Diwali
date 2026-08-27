@@ -15,14 +15,17 @@ import {
   Layers,
   Minus,
   Package,
+  Phone,
   Plus,
   Printer,
+  QrCode as QrIcon,
   RefreshCw,
   ShoppingBag,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
+import QRCode from "qrcode";
 import { demoCategories, demoOrders, demoProducts, isDemoMode } from "@/lib/demo-data";
 import { activeStatuses, money, statusLabel } from "@/lib/format";
 import { autoTranslateToKannada } from "@/lib/kannada";
@@ -100,6 +103,36 @@ export function OwnerDashboard() {
   >([]);
   const [isSavingOrderEdit, setIsSavingOrderEdit] = useState(false);
   const [isDeletingOrder, setIsDeletingOrder] = useState(false);
+
+  // Instant Order Detail Popup & Dynamic UPI QR State
+  const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
+  const [ownerQrDataUrl, setOwnerQrDataUrl] = useState<string | null>(null);
+
+  const viewingOrderDetail = useMemo(
+    () => orders.find((o) => o.id === viewingOrderId) ?? null,
+    [orders, viewingOrderId],
+  );
+
+  // Generate UPI QR for viewingOrderDetail
+  useEffect(() => {
+    if (!viewingOrderDetail) return;
+    let active = true;
+    const formattedAmount = (viewingOrderDetail.totalPaise / 100).toFixed(2);
+    const upiUrl = `upi://pay?pa=8123426350@okbizaxis&pn=Padamshree+Garments&am=${formattedAmount}&cu=INR&tn=Bill+${viewingOrderDetail.token}`;
+    QRCode.toDataURL(upiUrl, {
+      margin: 1,
+      width: 260,
+      color: { dark: "#211b18", light: "#ffffff" },
+    })
+      .then((url) => {
+        if (active) setOwnerQrDataUrl(url);
+      })
+      .catch((err) => console.error("Owner QR error:", err));
+
+    return () => {
+      active = false;
+    };
+  }, [viewingOrderDetail]);
 
   // Load Catalog from Supabase
   const loadCatalog = useCallback(async () => {
@@ -567,8 +600,8 @@ export function OwnerDashboard() {
   };
 
   // Order transition
-  const handleOrderTransition = async (status: OrderStatus) => {
-    const selected = orders.find((o) => o.id === selectedId) ?? orders[0];
+  const handleOrderTransition = async (status: OrderStatus, customOrder?: Order) => {
+    const selected = customOrder ?? orders.find((o) => o.id === selectedId) ?? orders[0];
     if (!selected) return;
     if (isDemoMode()) {
       setOrders((current) =>
@@ -690,6 +723,7 @@ export function OwnerDashboard() {
         const nextOrders = orders.filter((o) => o.id !== order.id);
         setOrders(nextOrders);
         if (selectedId === order.id) setSelectedId(nextOrders[0]?.id);
+        if (viewingOrderId === order.id) setViewingOrderId(null);
         setBannerMessage({ text: `Order ${order.token} deleted!`, type: "success" });
       } else {
         const res = await fetch(`/api/owner/orders/${order.id}`, { method: "DELETE" });
@@ -697,6 +731,7 @@ export function OwnerDashboard() {
         const nextOrders = orders.filter((o) => o.id !== order.id);
         setOrders(nextOrders);
         if (selectedId === order.id) setSelectedId(nextOrders[0]?.id);
+        if (viewingOrderId === order.id) setViewingOrderId(null);
         setBannerMessage({ text: `Order ${order.token} deleted successfully!`, type: "success" });
       }
     } catch (err) {
@@ -1405,7 +1440,11 @@ export function OwnerDashboard() {
                     <button
                       key={order.id}
                       className={`order-row ${selectedOrder?.id === order.id ? "selected" : ""}`}
-                      onClick={() => setSelectedId(order.id)}
+                      onClick={() => {
+                        setSelectedId(order.id);
+                        setViewingOrderId(order.id);
+                      }}
+                      style={{ cursor: "pointer" }}
                     >
                       <span className="order-token">{order.token}</span>
                       <span className="order-meta">
@@ -1938,6 +1977,293 @@ export function OwnerDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* INSTANT ORDER DETAILS & UPI QR MODAL / BOTTOM SHEET */}
+      {/* ========================================================= */}
+      {viewingOrderDetail && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 65,
+            background: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewingOrderId(null);
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              width: "100%",
+              maxWidth: 620,
+              maxHeight: "92dvh",
+              overflowY: "auto",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              padding: "20px 16px 28px",
+              boxShadow: "0 -10px 35px rgba(0,0,0,0.25)",
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+              <div>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "#fff9ee",
+                    border: "1.5px solid var(--gold)",
+                    padding: "3px 10px",
+                    borderRadius: 8,
+                    fontSize: "0.82rem",
+                    fontWeight: 900,
+                    color: "var(--wine)",
+                    letterSpacing: "0.08em",
+                    marginBottom: 6,
+                  }}
+                >
+                  TOKEN {viewingOrderDetail.token}
+                </div>
+                <h2 style={{ margin: 0, fontSize: "1.4rem", color: "var(--ink)", fontWeight: 900 }}>
+                  {viewingOrderDetail.customerName}
+                </h2>
+                {viewingOrderDetail.customerPhone ? (
+                  <a
+                    href={`tel:${viewingOrderDetail.customerPhone}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      color: "var(--wine)",
+                      fontWeight: 800,
+                      fontSize: "0.85rem",
+                      marginTop: 4,
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Phone size={13} /> {viewingOrderDetail.customerPhone} (Tap to Call)
+                  </a>
+                ) : (
+                  <small style={{ color: "var(--muted)", display: "block", marginTop: 2 }}>No phone provided</small>
+                )}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setViewingOrderId(null)}
+                  style={{
+                    background: "#f3eee8",
+                    border: 0,
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Status & Payment Badges */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fbf9f6", padding: "10px 14px", borderRadius: 12, marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 700 }}>Status:</span>
+                <span className={`status-pill ${viewingOrderDetail.status}`}>
+                  {statusLabel[viewingOrderDetail.status].en}
+                </span>
+              </div>
+
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  fontSize: "0.78rem",
+                  fontWeight: 900,
+                  background: viewingOrderDetail.paymentStatus === "paid" ? "#dcf6e9" : "#fff0cc",
+                  color: viewingOrderDetail.paymentStatus === "paid" ? "#09643f" : "#765200",
+                }}
+              >
+                {viewingOrderDetail.paymentStatus === "paid" ? "✓ PAID" : "₹ PAYMENT DUE"}
+              </span>
+            </div>
+
+            {/* Itemized Table */}
+            <div style={{ marginBottom: 16 }}>
+              <table className="detail-table" style={{ width: "100%" }}>
+                <thead>
+                  <tr style={{ background: "#f7f3ee" }}>
+                    <th style={{ padding: "8px 10px", borderRadius: "8px 0 0 8px" }}>Item & Size</th>
+                    <th style={{ padding: "8px 6px", textAlign: "center" }}>Qty</th>
+                    <th style={{ padding: "8px 10px", textAlign: "right", borderRadius: "0 8px 8px 0" }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewingOrderDetail.items.map((item) => (
+                    <tr key={item.id}>
+                      <td style={{ padding: "8px" }}>
+                        <strong style={{ fontSize: "0.92rem" }}>{item.productNameEn}</strong><br />
+                        <small style={{ color: "var(--wine)", fontWeight: 800 }}>Size: {item.size} · {item.colorEn}</small>
+                      </td>
+                      <td style={{ textAlign: "center", fontWeight: 800 }}>{item.quantity}</td>
+                      <td style={{ textAlign: "right", fontWeight: 900 }}>{money(item.lineTotalPaise)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: "2px solid var(--ink)" }}>
+                    <th colSpan={2} style={{ padding: "10px 8px", fontSize: "1rem", fontWeight: 900 }}>Total Amount</th>
+                    <th style={{ padding: "10px 8px", textAlign: "right", fontSize: "1.2rem", fontWeight: 1000, color: "var(--wine)" }}>
+                      {money(viewingOrderDetail.totalPaise)}
+                    </th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Dynamic UPI QR Code to Collect Payment */}
+            <div
+              style={{
+                background: "#fff",
+                border: "2px solid var(--wine)",
+                borderRadius: 16,
+                padding: "16px",
+                textAlign: "center",
+                marginBottom: 16,
+                boxShadow: "0 4px 14px rgba(143,29,44,0.08)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 4 }}>
+                <QrIcon size={20} color="var(--wine)" />
+                <h3 style={{ margin: 0, fontSize: "1rem", color: "var(--ink)", fontWeight: 900 }}>
+                  Show QR to Customer to Collect {money(viewingOrderDetail.totalPaise)}
+                </h3>
+              </div>
+              <p style={{ margin: "0 0 10px", fontSize: "0.8rem", color: "var(--muted)" }}>
+                Customer scans with Google Pay, PhonePe, Paytm, or BHIM
+              </p>
+
+              {ownerQrDataUrl ? (
+                <div style={{ display: "inline-block", padding: 8, background: "#fff", borderRadius: 12, border: "1px solid #ddd" }}>
+                  <Image
+                    src={ownerQrDataUrl}
+                    alt={`UPI QR for ₹${(viewingOrderDetail.totalPaise / 100).toFixed(2)}`}
+                    width={180}
+                    height={180}
+                    style={{ display: "block", borderRadius: 6 }}
+                    priority
+                  />
+                </div>
+              ) : (
+                <div style={{ width: 180, height: 180, margin: "0 auto", display: "grid", placeItems: "center", background: "#f8f5f0", borderRadius: 12, fontSize: "0.85rem", color: "var(--muted)" }}>
+                  Generating QR…
+                </div>
+              )}
+
+              <div style={{ fontSize: "0.82rem", color: "var(--muted)", marginTop: 8 }}>
+                UPI ID: <strong style={{ color: "var(--ink)" }}>8123426350@okbizaxis</strong>
+              </div>
+            </div>
+
+            {/* Quick Actions Row */}
+            <div style={{ display: "grid", gap: 10 }}>
+              {/* Mark as Paid / Due button */}
+              <button
+                type="button"
+                onClick={() => handleTogglePaymentStatus(viewingOrderDetail)}
+                style={{
+                  minHeight: 46,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  background: viewingOrderDetail.paymentStatus === "paid" ? "#fff0cc" : "#17724c",
+                  color: viewingOrderDetail.paymentStatus === "paid" ? "#765200" : "#fff",
+                  border: viewingOrderDetail.paymentStatus === "paid" ? "1.5px solid #d99b36" : "none",
+                  fontWeight: 900,
+                  fontSize: "0.95rem",
+                  borderRadius: 12,
+                  cursor: "pointer",
+                }}
+              >
+                <CheckCircle2 size={18} />
+                {viewingOrderDetail.paymentStatus === "paid" ? "Mark as Payment Due" : "Mark as Paid ✓"}
+              </button>
+
+              {/* Status transition buttons */}
+              {nextActions[viewingOrderDetail.status].length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {nextActions[viewingOrderDetail.status].map((status) => (
+                    <button
+                      key={status}
+                      className={status === "cancelled" || status === "expired" ? "danger" : "primary"}
+                      style={{ flex: 1, minHeight: 42, fontSize: "0.9rem" }}
+                      onClick={() => handleOrderTransition(status, viewingOrderDetail)}
+                    >
+                      {statusLabel[status].en}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Secondary actions */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openEditOrderModal(viewingOrderDetail);
+                  }}
+                  className="secondary"
+                  style={{ minHeight: 42, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.85rem" }}
+                >
+                  <Edit2 size={15} /> Edit
+                </button>
+
+                <Link
+                  className="secondary"
+                  href={`/owner/receipt/${viewingOrderDetail.id}`}
+                  style={{ minHeight: 42, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.85rem" }}
+                >
+                  <Printer size={15} /> Print
+                </Link>
+
+                <button
+                  type="button"
+                  disabled={isDeletingOrder}
+                  onClick={() => handleDeleteOrder(viewingOrderDetail)}
+                  className="danger"
+                  style={{ minHeight: 42, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.85rem" }}
+                >
+                  <Trash2 size={15} /> Delete
+                </button>
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setViewingOrderId(null)}
+                className="secondary full"
+                style={{ minHeight: 44, marginTop: 6, borderRadius: 12, fontWeight: 800 }}
+              >
+                Close Details
+              </button>
+            </div>
           </div>
         </div>
       )}

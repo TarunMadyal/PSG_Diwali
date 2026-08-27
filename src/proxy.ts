@@ -18,7 +18,8 @@ export async function proxy(request: NextRequest) {
     },
   });
   const { data } = await supabase.auth.getClaims();
-  if (request.nextUrl.pathname.startsWith("/owner") && request.nextUrl.pathname !== "/owner/login" && !data?.claims) {
+  const pathname = request.nextUrl.pathname;
+  if (pathname.startsWith("/owner") && pathname !== "/owner/login" && !pathname.startsWith("/owner/access/") && !data?.claims) {
     return NextResponse.redirect(new URL("/owner/login", request.url));
   }
   return response;

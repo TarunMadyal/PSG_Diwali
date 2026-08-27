@@ -12,7 +12,15 @@ import { useApp } from "./app-providers";
 import { CartFab } from "./cart-fab";
 import { CustomerHeader } from "./customer-header";
 
-function ProductCard({ product, eager = false }: { product: Product; eager?: boolean }) {
+function ProductCard({
+  product,
+  category,
+  eager = false,
+}: {
+  product: Product;
+  category?: Category;
+  eager?: boolean;
+}) {
   const { language, addLine } = useApp();
   const variants = product.variants.filter(
     (variant) => variant.active && availableStock(variant.stockOnHand, variant.reservedQuantity) > 0,
@@ -92,6 +100,9 @@ function ProductCard({ product, eager = false }: { product: Product; eager?: boo
               addLine({
                 lineId: variant.id,
                 productId: product.id,
+                categoryId: category?.id ?? product.categoryId,
+                categoryNameEn: category?.nameEn,
+                categoryNameKn: category?.nameKn,
                 variantId: variant.id,
                 nameEn: product.nameEn,
                 nameKn: getLocalizedName(product.nameEn, product.nameKn, "kn"),
@@ -130,10 +141,38 @@ export function ProductBrowser({ category, products }: { category: Category; pro
           <h1>{categoryTitle}</h1>
           {categorySubtitle && categorySubtitle !== categoryTitle && <p>{categorySubtitle}</p>}
         </section>
+
+        {/* Festive 3-Piece Combo Offer Note */}
+        <div
+          style={{
+            margin: "0 0 16px",
+            background: "linear-gradient(135deg, #fff9ee 0%, #fff2d9 100%)",
+            border: "2px solid var(--gold)",
+            borderRadius: 16,
+            padding: "12px 14px",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 10,
+            boxShadow: "0 3px 12px rgba(212,175,55,0.12)",
+          }}
+        >
+          <span style={{ fontSize: "1.4rem", lineHeight: 1 }}>🎉</span>
+          <div>
+            <strong style={{ fontSize: "0.88rem", color: "var(--wine)", display: "block", fontWeight: 900 }}>
+              {language === "kn" ? "ವಿಶೇಷ ಕಾಂಬೊ ಆಫರ್: 3 ಬಟ್ಟೆ ಖರೀದಿಸಿ!" : "🔥 Special Combo Offer: Buy Any 3!"}
+            </strong>
+            <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "var(--ink)", lineHeight: 1.35 }}>
+              {language === "kn"
+                ? `ಈ ${categoryTitle} ಕ್ಯಾಟಗರಿಯ ಯಾವುದೇ 3 ಬಟ್ಟೆ ಖರೀದಿಸಿ — (ಗರಿಷ್ಠ ಬೆಲೆ × 2) + ₹100 ಮಾತ್ರ! (ಉದಾ: ₹250 ರ 3 ಪೀಸ್ = ₹600)`
+                : `Buy any 3 items in ${category.nameEn} and get them for (Highest Price × 2) + ₹100! (e.g. 3 of ₹250 = ₹600)`}
+            </p>
+          </div>
+        </div>
+
         {visible.length ? (
           <div className="product-grid">
             {visible.map((product, index) => (
-              <ProductCard product={product} eager={index < 2} key={product.id} />
+              <ProductCard product={product} category={category} eager={index < 2} key={product.id} />
             ))}
           </div>
         ) : (

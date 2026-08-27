@@ -23,6 +23,33 @@ export function CategoryHome({ categories }: { categories: Category[] }) {
           <p>{t.chooseHint}</p>
           {isDemoMode() && <span className="demo-badge">● DEMO · orders stay on this device</span>}
         </section>
+
+        {/* Festive 3-Piece Combo Banner */}
+        <div
+          style={{
+            margin: "0 0 18px",
+            background: "linear-gradient(135deg, #fff9ee 0%, #fff0d4 100%)",
+            border: "2px solid var(--gold)",
+            borderRadius: 16,
+            padding: "12px 14px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            boxShadow: "0 4px 14px rgba(212,175,55,0.12)",
+          }}
+        >
+          <span style={{ fontSize: "1.6rem", flexShrink: 0 }}>🎉</span>
+          <div>
+            <strong style={{ fontSize: "0.9rem", color: "var(--wine)", display: "block", fontWeight: 900 }}>
+              {language === "kn" ? "ವಿಶೇಷ ದೀಪಾವಳಿ ಕಾಂಬೊ ಆಫರ್!" : "✨ Special Festive 3-Piece Combo Offer!"}
+            </strong>
+            <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "var(--ink)", lineHeight: 1.3 }}>
+              {language === "kn"
+                ? "ಒಂದೇ ಕ್ಯಾಟಗರಿಯ ಯಾವುದೇ 3 ಬಟ್ಟೆ ಖರೀದಿಸಿ — (ಗರಿಷ್ಠ ಬೆಲೆ × 2) + ₹100 ಮಾತ್ರ!"
+                : "Buy any 3 items in the same category & get them for (Highest Price × 2) + ₹100!"}
+            </p>
+          </div>
+        </div>
         <div className="category-grid">
           {categories.map((category, index) => {
             const displayName = getLocalizedName(category.nameEn, category.nameKn, language);

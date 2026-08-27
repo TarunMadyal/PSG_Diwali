@@ -18,7 +18,6 @@ import {
   Package,
   Phone,
   Plus,
-  Printer,
   QrCode as QrIcon,
   RefreshCw,
   ShoppingBag,
@@ -1604,9 +1603,6 @@ export function OwnerDashboard() {
                       >
                         <Edit2 size={16} /> Edit Order
                       </button>
-                      <Link className="secondary" href={`/owner/receipt/${selectedOrder.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <Printer size={16} /> Print
-                      </Link>
                       <button
                         type="button"
                         disabled={isDeletingOrder}
@@ -2397,42 +2393,25 @@ export function OwnerDashboard() {
                 )}
               </div>
 
-              {/* Secondary actions: Print & Delete */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Link
-                  className="secondary"
-                  href={`/owner/receipt/${viewingOrderDetail.id}`}
-                  style={{
-                    minHeight: 44,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    fontSize: "0.9rem",
-                    borderRadius: 12,
-                  }}
-                >
-                  <Printer size={15} /> Print Receipt
-                </Link>
-
-                <button
-                  type="button"
-                  disabled={isDeletingOrder}
-                  onClick={() => handleDeleteOrder(viewingOrderDetail)}
-                  className="danger"
-                  style={{
-                    minHeight: 44,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    fontSize: "0.9rem",
-                    borderRadius: 12,
-                  }}
-                >
-                  <Trash2 size={15} /> Delete Order
-                </button>
-              </div>
+              {/* Delete action */}
+              <button
+                type="button"
+                disabled={isDeletingOrder}
+                onClick={() => handleDeleteOrder(viewingOrderDetail)}
+                className="danger"
+                style={{
+                  minHeight: 44,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  fontSize: "0.92rem",
+                  fontWeight: 800,
+                  borderRadius: 12,
+                }}
+              >
+                <Trash2 size={16} /> Delete Order Permanently
+              </button>
 
               {/* Close Button */}
               <button

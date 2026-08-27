@@ -45,6 +45,9 @@ export type Product = {
 export type CartLine = {
   lineId: string;
   productId: string;
+  categoryId?: string;
+  categoryNameEn?: string;
+  categoryNameKn?: string;
   variantId: string;
   nameEn: string;
   nameKn: string;

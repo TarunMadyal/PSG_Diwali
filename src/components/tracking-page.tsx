@@ -213,7 +213,13 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
           </div>
 
           {/* Dynamic UPI QR Code Section */}
-          <UpiQrCode amountRupees={amountRupees} token={order.token} customerName={order.customerName} />
+          <UpiQrCode
+            amountRupees={amountRupees}
+            token={order.token}
+            trackingKey={trackingKey}
+            paymentStatus={order.paymentStatus}
+            onPaymentConfirmed={refresh}
+          />
 
           {/* Order Status Progress Tracker */}
           <div style={{ marginTop: 22, borderTop: "1px solid #e8e2da", paddingTop: 18 }}>

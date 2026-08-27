@@ -1400,7 +1400,24 @@ export function OwnerDashboard() {
                         <h2>{selectedOrder.customerName}</h2>
                         <small>{selectedOrder.customerPhone || "No phone"}</small>
                       </div>
-                      <span className={`status-pill ${selectedOrder.status}`}>{statusLabel[selectedOrder.status].en}</span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                        <span className={`status-pill ${selectedOrder.status}`}>{statusLabel[selectedOrder.status].en}</span>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            fontSize: "0.76rem",
+                            fontWeight: 900,
+                            background: selectedOrder.paymentStatus === "paid" ? "#dcf6e9" : "#fff0cc",
+                            color: selectedOrder.paymentStatus === "paid" ? "#09643f" : "#765200",
+                          }}
+                        >
+                          {selectedOrder.paymentStatus === "paid" ? "✓ PAID via UPI" : "₹ PAYMENT DUE"}
+                        </span>
+                      </div>
                     </div>
 
                     <table className="detail-table">

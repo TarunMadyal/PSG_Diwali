@@ -91,7 +91,7 @@ export function ReceiptView({ orderId }: { orderId: string }) {
         </div>
 
         <div style={{ marginTop: 12, textAlign: "center" }}>
-          <UpiQrCode amountRupees={amountRupees} token={order.token} customerName={order.customerName} />
+          <UpiQrCode amountRupees={amountRupees} token={order.token} />
         </div>
 
         <p style={{ textAlign: "center", fontWeight: 800, fontSize: "11px", margin: "12px 0 2px" }}>

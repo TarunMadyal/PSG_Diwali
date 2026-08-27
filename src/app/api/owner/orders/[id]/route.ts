@@ -7,6 +7,7 @@ const patchSchema = z.object({
   customerName: z.string().trim().min(2).max(60).optional(),
   customerPhone: z.string().trim().max(20).nullable().optional(),
   paymentStatus: z.enum(["due", "paid"]).optional(),
+  totalPaise: z.number().int().min(0).optional(),
   items: z
     .array(
       z.object({
@@ -157,6 +158,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
 
       updates.total_paise = newTotalPaise;
+    }
+
+    if (body.totalPaise !== undefined) {
+      updates.total_paise = body.totalPaise;
     }
 
     // 3. Update the order

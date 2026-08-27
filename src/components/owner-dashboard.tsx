@@ -13,6 +13,7 @@ import {
   FolderPlus,
   Image as ImageIcon,
   Layers,
+  Loader2,
   Minus,
   Package,
   Phone,
@@ -37,8 +38,8 @@ const STANDARD_SIZES = ["S", "M", "L", "XL", "XXL", "3XL", "Free Size"];
 const PANT_SIZES = ["28", "30", "32", "34", "36", "38", "40"];
 
 const nextActions: Record<OrderStatus, OrderStatus[]> = {
-  placed: ["accepted", "cancelled", "expired"],
-  accepted: ["preparing", "cancelled", "expired"],
+  placed: ["preparing", "cancelled"],
+  accepted: ["preparing", "cancelled"],
   preparing: ["ready", "cancelled"],
   ready: ["collected", "cancelled"],
   collected: [],
@@ -98,11 +99,13 @@ export function OwnerDashboard() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [editOrderName, setEditOrderName] = useState("");
   const [editOrderPhone, setEditOrderPhone] = useState("");
+  const [editOrderTotalRupees, setEditOrderTotalRupees] = useState("");
   const [editOrderItems, setEditOrderItems] = useState<
     Array<{ id: string; productNameEn: string; size: string; quantity: number; unitPricePaise: number }>
   >([]);
   const [isSavingOrderEdit, setIsSavingOrderEdit] = useState(false);
   const [isDeletingOrder, setIsDeletingOrder] = useState(false);
+  const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null);
 
   // Instant Order Detail Popup & Dynamic UPI QR State
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
@@ -603,43 +606,69 @@ export function OwnerDashboard() {
   const handleOrderTransition = async (status: OrderStatus, customOrder?: Order) => {
     const selected = customOrder ?? orders.find((o) => o.id === selectedId) ?? orders[0];
     if (!selected) return;
-    if (isDemoMode()) {
-      setOrders((current) =>
-        current.map((o) => (o.id === selected.id ? { ...o, status, paymentStatus: status === "collected" ? "paid" : o.paymentStatus } : o)),
-      );
-      return;
+    const loadingKey = `${selected.id}-${status}`;
+    setActionLoadingKey(loadingKey);
+    try {
+      if (isDemoMode()) {
+        setOrders((current) =>
+          current.map((o) => (o.id === selected.id ? { ...o, status, paymentStatus: status === "collected" ? "paid" : o.paymentStatus } : o)),
+        );
+        setBannerMessage({ text: `Order #${selected.token} moved to ${statusLabel[status].en}`, type: "info" });
+        return;
+      }
+      const response = await fetch(`/api/owner/orders/${selected.id}/status`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (response.ok) {
+        await refreshOrders();
+        setBannerMessage({ text: `Order #${selected.token} updated to ${statusLabel[status].en}!`, type: "success" });
+      } else {
+        const err = await response.json();
+        alert(err.error ?? "Failed to update order status");
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update order status");
+    } finally {
+      setActionLoadingKey(null);
     }
-    const response = await fetch(`/api/owner/orders/${selected.id}/status`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    if (response.ok) await refreshOrders();
   };
 
   const handleTogglePaymentStatus = async (order: Order) => {
     const nextPaymentStatus = order.paymentStatus === "paid" ? "due" : "paid";
-    if (isDemoMode()) {
-      setOrders((current) =>
-        current.map((o) => (o.id === order.id ? { ...o, paymentStatus: nextPaymentStatus } : o)),
-      );
-      setBannerMessage({
-        text: nextPaymentStatus === "paid" ? `Order #${order.token} marked as PAID ✓` : `Order #${order.token} marked as PAYMENT DUE`,
-        type: "info",
+    const loadingKey = `${order.id}-payment`;
+    setActionLoadingKey(loadingKey);
+    try {
+      if (isDemoMode()) {
+        setOrders((current) =>
+          current.map((o) => (o.id === order.id ? { ...o, paymentStatus: nextPaymentStatus } : o)),
+        );
+        setBannerMessage({
+          text: nextPaymentStatus === "paid" ? `Order #${order.token} marked as PAID ✓` : `Order #${order.token} marked as PAYMENT DUE`,
+          type: "info",
+        });
+        return;
+      }
+      const response = await fetch(`/api/owner/orders/${order.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paymentStatus: nextPaymentStatus }),
       });
-      return;
-    }
-    const response = await fetch(`/api/owner/orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ paymentStatus: nextPaymentStatus }),
-    });
-    if (response.ok) {
-      await refreshOrders();
-      setBannerMessage({
-        text: nextPaymentStatus === "paid" ? `Order #${order.token} marked as PAID ✓` : `Order #${order.token} marked as PAYMENT DUE`,
-        type: "info",
-      });
+      if (response.ok) {
+        await refreshOrders();
+        setBannerMessage({
+          text: nextPaymentStatus === "paid" ? `Order #${order.token} marked as PAID ✓` : `Order #${order.token} marked as PAYMENT DUE`,
+          type: "info",
+        });
+      } else {
+        const err = await response.json();
+        alert(err.error ?? "Failed to update payment status");
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update payment status");
+    } finally {
+      setActionLoadingKey(null);
     }
   };
 
@@ -647,6 +676,7 @@ export function OwnerDashboard() {
     setEditingOrder(order);
     setEditOrderName(order.customerName);
     setEditOrderPhone(order.customerPhone ?? "");
+    setEditOrderTotalRupees((order.totalPaise / 100).toFixed(0));
     setEditOrderItems(
       order.items.map((i) => ({
         id: i.id,
@@ -665,10 +695,10 @@ export function OwnerDashboard() {
       alert("Order must have at least one item.");
       return;
     }
+    const finalTotalPaise = Math.max(0, Math.round((parseFloat(editOrderTotalRupees) || 0) * 100));
     setIsSavingOrderEdit(true);
     try {
       if (isDemoMode()) {
-        const updatedTotal = editOrderItems.reduce((sum, i) => sum + i.quantity * i.unitPricePaise, 0);
         const updated: Order = {
           ...editingOrder,
           customerName: editOrderName.trim(),
@@ -681,10 +711,10 @@ export function OwnerDashboard() {
                 : orig;
             })
             .filter((orig) => editOrderItems.some((e) => e.id === orig.id)),
-          totalPaise: updatedTotal,
+          totalPaise: finalTotalPaise,
         };
         setOrders(orders.map((o) => (o.id === editingOrder.id ? updated : o)));
-        setBannerMessage({ text: `Order ${editingOrder.token} updated!`, type: "success" });
+        setBannerMessage({ text: `Order #${editingOrder.token} updated!`, type: "success" });
         setEditingOrder(null);
       } else {
         const res = await fetch(`/api/owner/orders/${editingOrder.id}`, {
@@ -693,13 +723,14 @@ export function OwnerDashboard() {
           body: JSON.stringify({
             customerName: editOrderName.trim(),
             customerPhone: editOrderPhone.trim() || null,
+            totalPaise: finalTotalPaise,
             items: editOrderItems.map((i) => ({ id: i.id, quantity: i.quantity, unitPricePaise: i.unitPricePaise })),
           }),
         });
         if (!res.ok) throw new Error((await res.json()).error ?? "Failed to update order");
         const updatedOrder: Order = await res.json();
         setOrders(orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
-        setBannerMessage({ text: `Order ${editingOrder.token} updated successfully!`, type: "success" });
+        setBannerMessage({ text: `Order #${editingOrder.token} updated successfully!`, type: "success" });
         setEditingOrder(null);
       }
     } catch (err) {
@@ -1515,17 +1546,30 @@ export function OwnerDashboard() {
                     </table>
 
                     <div className="action-row" style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {nextActions[selectedOrder.status].map((status) => (
-                        <button
-                          key={status}
-                          className={status === "cancelled" || status === "expired" ? "danger" : "primary"}
-                          onClick={() => handleOrderTransition(status)}
-                        >
-                          {statusLabel[status].en}
-                        </button>
-                      ))}
+                      {nextActions[selectedOrder.status].map((status) => {
+                        const isCurrentLoading = actionLoadingKey === `${selectedOrder.id}-${status}`;
+                        return (
+                          <button
+                            key={status}
+                            disabled={!!actionLoadingKey}
+                            className={status === "cancelled" || status === "expired" ? "danger" : "primary"}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                            onClick={() => handleOrderTransition(status)}
+                          >
+                            {isCurrentLoading ? (
+                              <>
+                                <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                                <span>Updating…</span>
+                              </>
+                            ) : (
+                              statusLabel[status].en
+                            )}
+                          </button>
+                        );
+                      })}
                       <button
                         type="button"
+                        disabled={actionLoadingKey === `${selectedOrder.id}-payment`}
                         onClick={() => handleTogglePaymentStatus(selectedOrder)}
                         style={{
                           display: "inline-flex",
@@ -1540,8 +1584,17 @@ export function OwnerDashboard() {
                           cursor: "pointer",
                         }}
                       >
-                        <CheckCircle2 size={16} />
-                        {selectedOrder.paymentStatus === "paid" ? "Mark as Due" : "Mark as Paid ✓"}
+                        {actionLoadingKey === `${selectedOrder.id}-payment` ? (
+                          <>
+                            <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                            <span>Updating…</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={16} />
+                            <span>{selectedOrder.paymentStatus === "paid" ? "Mark as Due" : "Mark as Paid ✓"}</span>
+                          </>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -1835,8 +1888,9 @@ export function OwnerDashboard() {
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 60,
-            background: "rgba(0,0,0,0.6)",
+            zIndex: 80,
+            background: "rgba(0,0,0,0.7)",
+            backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "flex-end",
             justifyContent: "center",
@@ -1852,7 +1906,7 @@ export function OwnerDashboard() {
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
               padding: "20px 16px",
-              boxShadow: "0 -10px 30px rgba(0,0,0,0.2)",
+              boxShadow: "0 -10px 35px rgba(0,0,0,0.3)",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -1895,6 +1949,57 @@ export function OwnerDashboard() {
                 />
               </div>
 
+              {/* Editable Total Amount */}
+              <div style={{ background: "#fff9ee", border: "1.5px solid var(--gold)", padding: 12, borderRadius: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <label style={{ fontWeight: 900, fontSize: "0.92rem", color: "var(--wine)" }}>
+                    Total Bill Amount (₹) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const calculated = editOrderItems.reduce((sum, i) => sum + i.quantity * i.unitPricePaise, 0) / 100;
+                      setEditOrderTotalRupees(calculated.toFixed(0));
+                    }}
+                    style={{
+                      background: "#fff",
+                      border: "1px solid var(--gold)",
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                      fontSize: "0.74rem",
+                      fontWeight: 800,
+                      color: "var(--wine)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Reset to Items Sum
+                  </button>
+                </div>
+                <input
+                  type="number"
+                  required
+                  min={0}
+                  step="any"
+                  placeholder="e.g. 500"
+                  value={editOrderTotalRupees}
+                  onChange={(e) => setEditOrderTotalRupees(e.target.value)}
+                  style={{
+                    width: "100%",
+                    height: 46,
+                    padding: "8px 12px",
+                    border: "2px solid var(--wine)",
+                    borderRadius: 10,
+                    fontSize: "1.25rem",
+                    fontWeight: 1000,
+                    color: "var(--wine)",
+                    background: "#fff",
+                  }}
+                />
+                <small style={{ color: "var(--muted)", fontSize: "0.76rem", marginTop: 4, display: "block" }}>
+                  💡 You can type any custom amount or discount here.
+                </small>
+              </div>
+
               <div>
                 <label style={{ display: "block", fontWeight: 800, fontSize: "0.9rem", marginBottom: 6 }}>
                   Order Items & Quantities
@@ -1925,11 +2030,12 @@ export function OwnerDashboard() {
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <button
                             type="button"
-                            onClick={() =>
-                              setEditOrderItems(
-                                editOrderItems.map((i) => (i.id === item.id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i)),
-                              )
-                            }
+                            onClick={() => {
+                              const next = editOrderItems.map((i) => (i.id === item.id ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i));
+                              setEditOrderItems(next);
+                              const calc = next.reduce((sum, i) => sum + i.quantity * i.unitPricePaise, 0) / 100;
+                              setEditOrderTotalRupees(calc.toFixed(0));
+                            }}
                             style={{ width: 28, height: 28, border: "1px solid #cbbcab", borderRadius: 6, background: "#f8f5f0", display: "grid", placeItems: "center" }}
                           >
                             <Minus size={14} />
@@ -1937,11 +2043,12 @@ export function OwnerDashboard() {
                           <span style={{ minWidth: 24, textAlign: "center", fontWeight: 900 }}>{item.quantity}</span>
                           <button
                             type="button"
-                            onClick={() =>
-                              setEditOrderItems(
-                                editOrderItems.map((i) => (i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i)),
-                              )
-                            }
+                            onClick={() => {
+                              const next = editOrderItems.map((i) => (i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
+                              setEditOrderItems(next);
+                              const calc = next.reduce((sum, i) => sum + i.quantity * i.unitPricePaise, 0) / 100;
+                              setEditOrderTotalRupees(calc.toFixed(0));
+                            }}
                             style={{ width: 28, height: 28, border: "1px solid #cbbcab", borderRadius: 6, background: "#f8f5f0", display: "grid", placeItems: "center" }}
                           >
                             <Plus size={14} />
@@ -1950,7 +2057,12 @@ export function OwnerDashboard() {
 
                         <button
                           type="button"
-                          onClick={() => setEditOrderItems(editOrderItems.filter((i) => i.id !== item.id))}
+                          onClick={() => {
+                            const next = editOrderItems.filter((i) => i.id !== item.id);
+                            setEditOrderItems(next);
+                            const calc = next.reduce((sum, i) => sum + i.quantity * i.unitPricePaise, 0) / 100;
+                            setEditOrderTotalRupees(calc.toFixed(0));
+                          }}
                           style={{ background: "transparent", border: 0, color: "#991b1b", padding: 4, cursor: "pointer" }}
                         >
                           <X size={18} />
@@ -1960,7 +2072,7 @@ export function OwnerDashboard() {
                   ))}
 
                   <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: "1px dashed #ccc", fontWeight: 900 }}>
-                    <span>Recalculated Total:</span>
+                    <span>Items Sum:</span>
                     <span style={{ color: "var(--wine)", fontSize: "1.1rem" }}>
                       ₹{(editOrderItems.reduce((sum, i) => sum + i.quantity * i.unitPricePaise, 0) / 100).toFixed(0)}
                     </span>
@@ -1970,7 +2082,14 @@ export function OwnerDashboard() {
 
               <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                 <button type="submit" disabled={isSavingOrderEdit} className="primary" style={{ flex: 1, minHeight: 46 }}>
-                  {isSavingOrderEdit ? "Saving…" : "Save Changes"}
+                  {isSavingOrderEdit ? (
+                    <>
+                      <Loader2 size={16} style={{ animation: "spin 1s linear infinite", display: "inline-block", marginRight: 6 }} />
+                      Saving Changes…
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
                 </button>
                 <button type="button" onClick={() => setEditingOrder(null)} className="secondary" style={{ minHeight: 46, padding: "8px 16px" }}>
                   Cancel
@@ -2186,6 +2305,7 @@ export function OwnerDashboard() {
               {/* Mark as Paid / Due button */}
               <button
                 type="button"
+                disabled={actionLoadingKey === `${viewingOrderDetail.id}-payment`}
                 onClick={() => handleTogglePaymentStatus(viewingOrderDetail)}
                 style={{
                   minHeight: 46,
@@ -2202,23 +2322,43 @@ export function OwnerDashboard() {
                   cursor: "pointer",
                 }}
               >
-                <CheckCircle2 size={18} />
-                {viewingOrderDetail.paymentStatus === "paid" ? "Mark as Payment Due" : "Mark as Paid ✓"}
+                {actionLoadingKey === `${viewingOrderDetail.id}-payment` ? (
+                  <>
+                    <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+                    <span>Updating Payment…</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} />
+                    <span>{viewingOrderDetail.paymentStatus === "paid" ? "Mark as Payment Due" : "Mark as Paid ✓"}</span>
+                  </>
+                )}
               </button>
 
               {/* Status transition buttons */}
               {nextActions[viewingOrderDetail.status].length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {nextActions[viewingOrderDetail.status].map((status) => (
-                    <button
-                      key={status}
-                      className={status === "cancelled" || status === "expired" ? "danger" : "primary"}
-                      style={{ flex: 1, minHeight: 42, fontSize: "0.9rem" }}
-                      onClick={() => handleOrderTransition(status, viewingOrderDetail)}
-                    >
-                      {statusLabel[status].en}
-                    </button>
-                  ))}
+                  {nextActions[viewingOrderDetail.status].map((status) => {
+                    const isCurrentLoading = actionLoadingKey === `${viewingOrderDetail.id}-${status}`;
+                    return (
+                      <button
+                        key={status}
+                        disabled={!!actionLoadingKey}
+                        className={status === "cancelled" || status === "expired" ? "danger" : "primary"}
+                        style={{ flex: 1, minHeight: 44, fontSize: "0.92rem", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                        onClick={() => handleOrderTransition(status, viewingOrderDetail)}
+                      >
+                        {isCurrentLoading ? (
+                          <>
+                            <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                            <span>Updating…</span>
+                          </>
+                        ) : (
+                          statusLabel[status].en
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 

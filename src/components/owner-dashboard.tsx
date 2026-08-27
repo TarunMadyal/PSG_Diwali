@@ -38,10 +38,10 @@ const STANDARD_SIZES = ["S", "M", "L", "XL", "XXL", "3XL", "Free Size"];
 const PANT_SIZES = ["28", "30", "32", "34", "36", "38", "40"];
 
 const nextActions: Record<OrderStatus, OrderStatus[]> = {
-  placed: ["preparing", "cancelled"],
-  accepted: ["preparing", "cancelled"],
-  preparing: ["ready", "cancelled"],
-  ready: ["collected", "cancelled"],
+  placed: ["cancelled"],
+  accepted: ["cancelled"],
+  preparing: ["cancelled"],
+  ready: ["cancelled"],
   collected: [],
   cancelled: [],
   expired: [],
@@ -1604,11 +1604,9 @@ export function OwnerDashboard() {
                       >
                         <Edit2 size={16} /> Edit Order
                       </button>
-                      {["accepted", "preparing", "ready", "collected"].includes(selectedOrder.status) && (
-                        <Link className="secondary" href={`/owner/receipt/${selectedOrder.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <Printer size={16} /> Print
-                        </Link>
-                      )}
+                      <Link className="secondary" href={`/owner/receipt/${selectedOrder.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <Printer size={16} /> Print
+                      </Link>
                       <button
                         type="button"
                         disabled={isDeletingOrder}
@@ -2335,52 +2333,86 @@ export function OwnerDashboard() {
                 )}
               </button>
 
-              {/* Status transition buttons */}
-              {nextActions[viewingOrderDetail.status].length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {nextActions[viewingOrderDetail.status].map((status) => {
-                    const isCurrentLoading = actionLoadingKey === `${viewingOrderDetail.id}-${status}`;
-                    return (
-                      <button
-                        key={status}
-                        disabled={!!actionLoadingKey}
-                        className={status === "cancelled" || status === "expired" ? "danger" : "primary"}
-                        style={{ flex: 1, minHeight: 44, fontSize: "0.92rem", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-                        onClick={() => handleOrderTransition(status, viewingOrderDetail)}
-                      >
-                        {isCurrentLoading ? (
-                          <>
-                            <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
-                            <span>Updating…</span>
-                          </>
-                        ) : (
-                          statusLabel[status].en
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Secondary actions */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {/* Main Actions: Edit & Cancel */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    openEditOrderModal(viewingOrderDetail);
-                  }}
+                  onClick={() => openEditOrderModal(viewingOrderDetail)}
                   className="secondary"
-                  style={{ minHeight: 42, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.85rem" }}
+                  style={{
+                    minHeight: 46,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    fontSize: "0.95rem",
+                    fontWeight: 800,
+                    borderRadius: 12,
+                  }}
                 >
-                  <Edit2 size={15} /> Edit
+                  <Edit2 size={16} /> Edit Order
                 </button>
 
+                {viewingOrderDetail.status !== "cancelled" ? (
+                  <button
+                    type="button"
+                    disabled={!!actionLoadingKey}
+                    className="danger"
+                    style={{
+                      minHeight: 46,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      fontSize: "0.95rem",
+                      fontWeight: 800,
+                      borderRadius: 12,
+                    }}
+                    onClick={() => handleOrderTransition("cancelled", viewingOrderDetail)}
+                  >
+                    {actionLoadingKey === `${viewingOrderDetail.id}-cancelled` ? (
+                      <>
+                        <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                        <span>Cancelling…</span>
+                      </>
+                    ) : (
+                      "Cancel Order"
+                    )}
+                  </button>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#fee2e2",
+                      color: "#991b1b",
+                      borderRadius: 12,
+                      fontWeight: 800,
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    Order Cancelled
+                  </div>
+                )}
+              </div>
+
+              {/* Secondary actions: Print & Delete */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Link
                   className="secondary"
                   href={`/owner/receipt/${viewingOrderDetail.id}`}
-                  style={{ minHeight: 42, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.85rem" }}
+                  style={{
+                    minHeight: 44,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    fontSize: "0.9rem",
+                    borderRadius: 12,
+                  }}
                 >
-                  <Printer size={15} /> Print
+                  <Printer size={15} /> Print Receipt
                 </Link>
 
                 <button
@@ -2388,9 +2420,17 @@ export function OwnerDashboard() {
                   disabled={isDeletingOrder}
                   onClick={() => handleDeleteOrder(viewingOrderDetail)}
                   className="danger"
-                  style={{ minHeight: 42, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "0.85rem" }}
+                  style={{
+                    minHeight: 44,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    fontSize: "0.9rem",
+                    borderRadius: 12,
+                  }}
                 >
-                  <Trash2 size={15} /> Delete
+                  <Trash2 size={15} /> Delete Order
                 </button>
               </div>
 
@@ -2399,7 +2439,7 @@ export function OwnerDashboard() {
                 type="button"
                 onClick={() => setViewingOrderId(null)}
                 className="secondary full"
-                style={{ minHeight: 44, marginTop: 6, borderRadius: 12, fontWeight: 800 }}
+                style={{ minHeight: 44, marginTop: 4, borderRadius: 12, fontWeight: 800 }}
               >
                 Close Details
               </button>

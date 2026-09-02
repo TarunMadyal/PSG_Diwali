@@ -66,13 +66,13 @@ export function CartPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#15803d", fontWeight: 900, fontSize: "0.9rem" }}>
                   <Sparkles size={16} />
                   <span>
-                    {language === "kn" ? "ವಿಶೇಷ ಕಾಂಬೊ ಆಫರ್ ಅನ್ವಯಿಸಲಾಗಿದೆ!" : "🎉 3-Item Combo Offer Applied!"}
+                    {language === "kn" ? "ವಿಶೇಷ ಕಾಂಬೊ ಆಫರ್ ಅನ್ವಯಿಸಲಾಗಿದೆ!" : "🎉 3-Item Combo Discount Applied!"}
                   </span>
                 </div>
                 {combos.map((combo, idx) => (
                   <div key={idx} style={{ fontSize: "0.82rem", color: "#166534", display: "flex", justifyContent: "space-between" }}>
                     <span>
-                      3 × {language === "kn" && combo.categoryNameKn ? combo.categoryNameKn : combo.categoryNameEn} Combo
+                      {language === "kn" ? `ಕಾಂಬೊ ${combos.length > 1 ? `#${idx + 1}` : ""} (3 ಬಟ್ಟೆಗಳು)` : `Combo ${combos.length > 1 ? `#${idx + 1}` : ""} (3 Items)`}
                     </span>
                     <strong>- {money(combo.savedPaise, language)}</strong>
                   </div>
@@ -80,7 +80,7 @@ export function CartPage() {
               </div>
             )}
 
-            {/* Smart Category Nudges */}
+            {/* Smart Universal Combo Nudges */}
             {nudges.length > 0 && (
               <div
                 style={{
@@ -93,13 +93,17 @@ export function CartPage() {
                   gap: 6,
                 }}
               >
-                {nudges.map((nudge) => (
-                  <div key={nudge.categoryId} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.82rem", color: "var(--wine)", fontWeight: 700 }}>
+                {nudges.map((nudge, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.84rem", color: "var(--wine)", fontWeight: 700 }}>
                     <Tag size={15} />
                     <span>
                       {language === "kn"
-                        ? `ಇನ್ನೊಂದು ${nudge.categoryNameKn || nudge.categoryNameEn} ಸೇರಿಸಿ — 3 ಪೀಸ್ ಕಾಂಬೊ ರಿಯಾಯಿತಿ ಪಡೆಯಿರಿ!`
-                        : `Add ${nudge.itemsNeeded} more ${nudge.categoryNameEn} to unlock the 3-Piece Combo Discount!`}
+                        ? (nudge.itemsNeeded === 1
+                            ? "ಇನ್ನೊಂದು ಬಟ್ಟೆ ಸೇರಿಸಿ — 3 ಪೀಸ್ ಕಾಂಬೊ ರಿಯಾಯಿತಿ ಪಡೆಯಿರಿ!"
+                            : `ಇನ್ನೂ ${nudge.itemsNeeded} ಬಟ್ಟೆಗಳನ್ನು ಸೇರಿಸಿ — 3 ಪೀಸ್ ಕಾಂಬೊ ರಿಯಾಯಿತಿ ಪಡೆಯಿರಿ!`)
+                        : (nudge.itemsNeeded === 1
+                            ? "Add 1 more item to unlock 3-item combo discount!"
+                            : `Add ${nudge.itemsNeeded} more items to unlock 3-item combo discount!`)}
                     </span>
                   </div>
                 ))}

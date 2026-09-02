@@ -161,8 +161,8 @@ export function CheckoutPage() {
               <Sparkles size={16} />
               <span>
                 {language === "kn"
-                  ? `ದೀಪಾವಳಿ ಕಾಂಬೊ ಆಫರ್ ಅನ್ವಯಿಸಲಾಗಿದೆ (-${money(discountPaise, language)})`
-                  : `Festive 3-Piece Combo Applied (-${money(discountPaise, language)})`}
+                  ? `3 ಬಟ್ಟೆಗಳ ಕಾಂಬೊ ರಿಯಾಯಿತಿ ಅನ್ವಯಿಸಲಾಗಿದೆ (-${money(discountPaise, language)})`
+                  : `3-Item Combo Discount Applied (-${money(discountPaise, language)})`}
               </span>
             </div>
           )}

@@ -40,13 +40,13 @@ export function CategoryHome({ categories }: { categories: Category[] }) {
         >
           <span style={{ fontSize: "1.6rem", flexShrink: 0 }}>🎉</span>
           <div>
-            <strong style={{ fontSize: "0.9rem", color: "var(--wine)", display: "block", fontWeight: 900 }}>
-              {language === "kn" ? "ವಿಶೇಷ ದೀಪಾವಳಿ ಕಾಂಬೊ ಆಫರ್!" : "✨ Special Festive 3-Piece Combo Offer!"}
+            <strong style={{ fontSize: "0.92rem", color: "var(--wine)", display: "block", fontWeight: 900 }}>
+              {language === "kn" ? "ವಿಶೇಷ ದೀಪಾವಳಿ ಆಫರ್!" : "✨ Special Festive Offer!"}
             </strong>
-            <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "var(--ink)", lineHeight: 1.3 }}>
+            <p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "var(--ink)", fontWeight: 700, lineHeight: 1.3 }}>
               {language === "kn"
-                ? "ಒಂದೇ ಕ್ಯಾಟಗರಿಯ ಯಾವುದೇ 3 ಬಟ್ಟೆ ಖರೀದಿಸಿ — (ಗರಿಷ್ಠ ಬೆಲೆ × 2) + ₹100 ಮಾತ್ರ!"
-                : "Buy any 3 items in the same category & get them for (Highest Price × 2) + ₹100!"}
+                ? "ಯಾವುದೇ 3 ಬಟ್ಟೆ ಖರೀದಿಸಿ ಮತ್ತು ರಿಯಾಯಿತಿ ಪಡೆಯಿರಿ"
+                : "Buy any 3 and get discount"}
             </p>
           </div>
         </div>

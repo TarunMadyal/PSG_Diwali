@@ -40,7 +40,7 @@ function getColorHex(colorName?: string): string {
 }
 
 export function ProductDetail({ category, product }: { category: Category; product: Product }) {
-  const { language, addLine } = useApp();
+  const { language, addLine, categorySizes, setCategorySize } = useApp();
   const t = copy[language];
 
   const activeVariants = useMemo(
@@ -57,7 +57,12 @@ export function ProductDetail({ category, product }: { category: Category; produ
     return Array.from(sizeSet);
   }, [activeVariants]);
 
+  const categorySavedSize = categorySizes[category.slug];
+
   const [selectedSize, setSelectedSize] = useState<string>(() => {
+    if (categorySavedSize && uniqueSizes.includes(categorySavedSize)) {
+      return categorySavedSize;
+    }
     // Pick first size that has in-stock variant
     const inStockVariant = activeVariants.find(
       (v) => availableStock(v.stockOnHand, v.reservedQuantity) > 0,
@@ -98,6 +103,7 @@ export function ProductDetail({ category, product }: { category: Category; produ
 
   function handleSizeSelect(size: string) {
     setSelectedSize(size);
+    setCategorySize(category.slug, size);
     setAddedToast(false);
     // Auto select first available color in new size
     const availableInNewSize = activeVariants.filter((v) => v.size === size);

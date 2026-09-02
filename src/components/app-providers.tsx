@@ -16,12 +16,16 @@ type Value = {
   totalPaise: number;
   combos: AppliedCombo[];
   nudges: ComboNudge[];
+  categorySizes: Record<string, string>;
+  setCategorySize: (categorySlug: string, size: string) => void;
+  clearCategorySize: (categorySlug: string) => void;
 };
 const Context = createContext<Value | null>(null);
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>("en");
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [categorySizes, setCategorySizes] = useState<Record<string, string>>({});
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -33,14 +37,22 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       } catch {
         localStorage.removeItem("psg-cart");
       }
+      try {
+        setCategorySizes(JSON.parse(localStorage.getItem("psg-category-sizes") ?? "{}") as Record<string, string>);
+      } catch {
+        localStorage.removeItem("psg-category-sizes");
+      }
       setReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem("psg-cart", JSON.stringify(cart));
-  }, [cart, ready]);
+    if (ready) {
+      localStorage.setItem("psg-cart", JSON.stringify(cart));
+      localStorage.setItem("psg-category-sizes", JSON.stringify(categorySizes));
+    }
+  }, [cart, categorySizes, ready]);
 
   const pricing = useMemo(() => calculateCartPricing(cart), [cart]);
 
@@ -77,8 +89,17 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       totalPaise: pricing.totalPaise,
       combos: pricing.combos,
       nudges: pricing.nudges,
+      categorySizes,
+      setCategorySize: (categorySlug: string, size: string) =>
+        setCategorySizes((prev) => ({ ...prev, [categorySlug]: size })),
+      clearCategorySize: (categorySlug: string) =>
+        setCategorySizes((prev) => {
+          const copy = { ...prev };
+          delete copy[categorySlug];
+          return copy;
+        }),
     }),
-    [cart, language, pricing],
+    [cart, categorySizes, language, pricing],
   );
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

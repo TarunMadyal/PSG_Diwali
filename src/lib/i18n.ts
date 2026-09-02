@@ -30,6 +30,13 @@ export const copy = {
     addedToCart: "Added to cart!",
     inStock: "In stock",
     lowStock: "Few left",
+    selectYourSize: "Select Your Size",
+    selectSizeToBrowse: "Choose your size to view available designs & stock",
+    changeSize: "Change Size",
+    browsingSize: "Size",
+    stylesAvailable: "styles in stock",
+    noProductsInSize: "No designs available in this size right now.",
+    tryAnotherSize: "Try another size",
   },
   kn: {
     choose: "ನಿಮಗೆ ಏನು ಬೇಕು?",
@@ -62,6 +69,13 @@ export const copy = {
     addedToCart: "ಬುಟ್ಟಿಗೆ ಸೇರಿಸಲಾಗಿದೆ!",
     inStock: "ಲಭ್ಯವಿದೆ",
     lowStock: "ಕೆಲವೇ ಉಳಿದಿವೆ",
+    selectYourSize: "ನಿಮ್ಮ ಸೈಜ್ ಆಯ್ಕೆಮಾಡಿ",
+    selectSizeToBrowse: "ಲಭ್ಯವಿರುವ ಬಟ್ಟೆಗಳನ್ನು ನೋಡಲು ನಿಮ್ಮ ಸೈಜ್ ಆಯ್ಕೆಮಾಡಿ",
+    changeSize: "ಸೈಜ್ ಬದಲಾಯಿಸಿ",
+    browsingSize: "ಸೈಜ್",
+    stylesAvailable: "ಲಭ್ಯವಿರುವ ವಿನ್ಯಾಸಗಳು",
+    noProductsInSize: "ಈ ಸೈಜ್‌ನಲ್ಲಿ ಯಾವುದೇ ಬಟ್ಟೆಗಳು ಲಭ್ಯವಿಲ್ಲ.",
+    tryAnotherSize: "ಬೇರೆ ಸೈಜ್ ಆಯ್ಕೆಮಾಡಿ",
   },
 } as const;
 

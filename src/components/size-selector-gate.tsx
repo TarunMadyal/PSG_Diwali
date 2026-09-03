@@ -89,10 +89,6 @@ export function SizeSelectorGate({
                   <span className="size-gate-label">{opt.size}</span>
                   <CheckCircle2 size={18} className="size-gate-check" />
                 </div>
-                <div className="size-gate-count">
-                  {opt.productCount}{" "}
-                  {language === "kn" ? "ವಿನ್ಯಾಸಗಳು ಲಭ್ಯ" : opt.productCount === 1 ? "design in stock" : "designs in stock"}
-                </div>
               </button>
             ))}
           </div>

@@ -11,7 +11,7 @@ const patchSchema = z.object({
   items: z
     .array(
       z.object({
-        id: z.string().uuid(),
+        id: z.string().min(1),
         quantity: z.number().int().min(1).max(50),
         unitPricePaise: z.number().int().min(0).optional(),
       }),
@@ -112,20 +112,44 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (body.customerPhone !== undefined) updates.customer_phone = body.customerPhone;
     if (body.paymentStatus !== undefined) updates.payment_status = body.paymentStatus;
 
-    // 2. Handle item quantity changes if provided
-    if (body.items && body.items.length > 0) {
-      let newTotalPaise = 0;
-      const currentItemsMap = new Map((currentOrder.order_items ?? []).map((i) => [i.id, i]));
+    // 2. Handle item quantity changes and deletions if provided
+    if (body.items !== undefined) {
+      const currentItems = currentOrder.order_items ?? [];
+      const updatedItemsMap = new Map(body.items.map((i) => [i.id, i]));
+      const activeStatuses = ["placed", "accepted", "preparing", "ready"];
 
+      // A. Remove items that were deleted in the editor
+      const itemsToDelete = currentItems.filter((orig) => !updatedItemsMap.has(orig.id));
+      for (const delItem of itemsToDelete) {
+        if (activeStatuses.includes(currentOrder.status) && delItem.variant_id) {
+          const { data: variant } = await client
+            .from("product_variants")
+            .select("reserved_quantity")
+            .eq("id", delItem.variant_id)
+            .single();
+
+          if (variant) {
+            const nextReserved = Math.max(0, (variant.reserved_quantity ?? 0) - delItem.quantity);
+            await client
+              .from("product_variants")
+              .update({ reserved_quantity: nextReserved, updated_at: new Date().toISOString() })
+              .eq("id", delItem.variant_id);
+          }
+        }
+
+        const { error: delErr } = await client.from("order_items").delete().eq("id", delItem.id);
+        if (delErr) {
+          return NextResponse.json({ error: `Failed to remove item: ${delErr.message}` }, { status: 400 });
+        }
+      }
+
+      // B. Update remaining items (Note: line_total_paise is generated always stored in postgres, do NOT pass it in update)
       for (const updatedItem of body.items) {
-        const existing = currentItemsMap.get(updatedItem.id);
+        const existing = currentItems.find((i) => i.id === updatedItem.id);
         if (existing) {
           const unitPrice = updatedItem.unitPricePaise ?? existing.unit_price_paise;
-          const lineTotal = unitPrice * updatedItem.quantity;
-          newTotalPaise += lineTotal;
 
           // Adjust stock reservation difference if order is active
-          const activeStatuses = ["placed", "accepted", "preparing", "ready"];
           if (activeStatuses.includes(currentOrder.status) && existing.variant_id) {
             const qtyDiff = updatedItem.quantity - existing.quantity;
             if (qtyDiff !== 0) {
@@ -146,18 +170,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           }
 
           // Update order item in database
-          await client
+          const { error: itemUpdateErr } = await client
             .from("order_items")
             .update({
               quantity: updatedItem.quantity,
               unit_price_paise: unitPrice,
-              line_total_paise: lineTotal,
             })
             .eq("id", updatedItem.id);
+
+          if (itemUpdateErr) {
+            return NextResponse.json({ error: `Failed to update item: ${itemUpdateErr.message}` }, { status: 400 });
+          }
         }
       }
-
-      updates.total_paise = newTotalPaise;
     }
 
     if (body.totalPaise !== undefined) {

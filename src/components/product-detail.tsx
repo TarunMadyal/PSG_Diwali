@@ -40,7 +40,7 @@ function getColorHex(colorName?: string): string {
 }
 
 export function ProductDetail({ category, product }: { category: Category; product: Product }) {
-  const { language, addLine, categorySizes, setCategorySize } = useApp();
+  const { language, addLine, categorySizes, setCategorySize, clearCategorySize } = useApp();
   const t = copy[language];
 
   const activeVariants = useMemo(
@@ -75,22 +75,14 @@ export function ProductDetail({ category, product }: { category: Category; produ
     return activeVariants.filter((v) => v.size === selectedSize);
   }, [activeVariants, selectedSize]);
 
-  // Available unique colors for the selected size
-  const [selectedColor, setSelectedColor] = useState<string>(() => {
-    const matching = activeVariants.find(
-      (v) => v.size === selectedSize && availableStock(v.stockOnHand, v.reservedQuantity) > 0,
-    );
-    return matching?.colorEn || variantsForSize[0]?.colorEn || "";
-  });
-
-  // Selected variant
+  // Selected variant for the chosen size (first in-stock variant)
   const selectedVariant: Variant | undefined = useMemo(() => {
     return (
       variantsForSize.find(
-        (v) => v.colorEn.toLowerCase() === selectedColor.toLowerCase(),
+        (v) => availableStock(v.stockOnHand, v.reservedQuantity) > 0,
       ) || variantsForSize[0]
     );
-  }, [variantsForSize, selectedColor]);
+  }, [variantsForSize]);
 
   const maxStock = selectedVariant
     ? availableStock(selectedVariant.stockOnHand, selectedVariant.reservedQuantity)
@@ -104,23 +96,6 @@ export function ProductDetail({ category, product }: { category: Category; produ
   function handleSizeSelect(size: string) {
     setSelectedSize(size);
     setCategorySize(category.slug, size);
-    setAddedToast(false);
-    // Auto select first available color in new size
-    const availableInNewSize = activeVariants.filter((v) => v.size === size);
-    const hasSameColor = availableInNewSize.some(
-      (v) => v.colorEn.toLowerCase() === selectedColor.toLowerCase() && availableStock(v.stockOnHand, v.reservedQuantity) > 0,
-    );
-    if (!hasSameColor) {
-      const firstInStock = availableInNewSize.find(
-        (v) => availableStock(v.stockOnHand, v.reservedQuantity) > 0,
-      );
-      setSelectedColor(firstInStock?.colorEn || availableInNewSize[0]?.colorEn || "");
-    }
-    setQuantity(1);
-  }
-
-  function handleColorSelect(colorEn: string) {
-    setSelectedColor(colorEn);
     setAddedToast(false);
     setQuantity(1);
   }
@@ -145,6 +120,7 @@ export function ProductDetail({ category, product }: { category: Category; produ
       quantity,
     });
 
+    clearCategorySize(category.slug);
     setAddedToast(true);
   }
 
@@ -231,69 +207,6 @@ export function ProductDetail({ category, product }: { category: Category; produ
               </div>
             )}
 
-            {/* Color Selection for the Chosen Size */}
-            <div className="option-group">
-              <div className="option-group-label">
-                <span>{t.selectColor}</span>
-                {selectedVariant && (
-                  <span className="selected-value">
-                    {language === "kn"
-                      ? getLocalizedName(selectedVariant.colorEn, selectedVariant.colorKn, "kn")
-                      : selectedVariant.colorEn}
-                  </span>
-                )}
-              </div>
-
-              <div className="color-cards-grid">
-                {variantsForSize.map((v) => {
-                  const stock = availableStock(v.stockOnHand, v.reservedQuantity);
-                  const isColorActive = selectedVariant?.id === v.id;
-                  const isColorDisabled = stock <= 0;
-                  const colorDisplayName = language === "kn"
-                    ? getLocalizedName(v.colorEn, v.colorKn, "kn")
-                    : v.colorEn;
-                  const secondaryColor = language === "kn"
-                    ? v.colorEn
-                    : getLocalizedName(v.colorEn, v.colorKn, "kn");
-
-                  return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      className={`color-card ${isColorActive ? "active" : ""}`}
-                      disabled={isColorDisabled}
-                      onClick={() => handleColorSelect(v.colorEn)}
-                    >
-                      <span
-                        className="color-dot"
-                        style={{ background: getColorHex(v.colorEn) }}
-                      />
-                      <div className="color-card-info">
-                        <span className="color-card-title">{colorDisplayName}</span>
-                        {secondaryColor && secondaryColor !== colorDisplayName && (
-                          <span className="color-card-sub">{secondaryColor}</span>
-                        )}
-                        <span
-                          className={`color-stock-badge ${
-                            stock > 2 ? "instock" : stock > 0 ? "low" : "out"
-                          }`}
-                        >
-                          {stock > 2
-                            ? t.inStock
-                            : stock > 0
-                            ? `${t.lowStock} (${stock})`
-                            : t.soldOut}
-                        </span>
-                      </div>
-                      {isColorActive && (
-                        <Check size={16} color="var(--wine)" style={{ marginLeft: "auto", flexShrink: 0 }} />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Quantity Stepper & Add to Cart */}
             <div className="product-actions-card">
               <div className="product-actions-top">
@@ -325,17 +238,30 @@ export function ProductDetail({ category, product }: { category: Category; produ
                     <Sparkles size={18} />
                     <span>{t.addedToCart}</span>
                   </div>
-                  <Link
-                    href="/cart"
-                    style={{
-                      color: "#fff",
-                      textDecoration: "underline",
-                      fontWeight: 900,
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    {t.cart} →
-                  </Link>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Link
+                      href={`/shop/${category.slug}`}
+                      style={{
+                        color: "#fff",
+                        textDecoration: "underline",
+                        fontWeight: 800,
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      + {t.choose}
+                    </Link>
+                    <Link
+                      href="/cart"
+                      style={{
+                        color: "#fff",
+                        textDecoration: "underline",
+                        fontWeight: 900,
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      {t.cart} →
+                    </Link>
+                  </div>
                 </div>
               )}
 

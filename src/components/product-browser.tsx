@@ -1,7 +1,8 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, SlidersHorizontal, RefreshCw } from "lucide-react";
+import { ArrowLeft, SlidersHorizontal, RefreshCw, ShoppingBag, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { availableStock } from "@/lib/domain";
 import { money } from "@/lib/format";
 import { copy } from "@/lib/i18n";
@@ -17,25 +18,19 @@ function ProductCard({
   category,
   selectedSize,
   eager = false,
+  onAddToCart,
 }: {
   product: Product;
   category: Category;
   selectedSize: string;
   eager?: boolean;
+  onAddToCart: (product: Product) => void;
 }) {
   const { language } = useApp();
+  const t = copy[language];
   const displayName = getLocalizedName(product.nameEn, product.nameKn, language);
   const secondaryName =
     language === "kn" ? product.nameEn : getLocalizedName(product.nameEn, product.nameKn, "kn");
-
-  // Count available colors for this specific selected size
-  const matchingVariants = product.variants.filter(
-    (v) =>
-      v.active &&
-      v.size === selectedSize &&
-      availableStock(v.stockOnHand, v.reservedQuantity) > 0,
-  );
-  const colorCount = matchingVariants.length;
 
   return (
     <Link
@@ -63,16 +58,18 @@ function ProductCard({
           <div className="product-card-price-row">
             <div className="price">{money(product.pricePaise, language)}</div>
           </div>
-          <div className="product-card-btn">
-            <span>
-              {colorCount > 1
-                ? language === "kn"
-                  ? `${colorCount} ಬಣ್ಣಗಳು`
-                  : `${colorCount} Colors`
-                : copy[language].selectColor}
-            </span>
-            <ChevronRight size={15} />
-          </div>
+          <button
+            type="button"
+            className="product-card-btn"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAddToCart(product);
+            }}
+          >
+            <ShoppingBag size={14} />
+            <span>{t.add}</span>
+          </button>
         </div>
       </div>
     </Link>
@@ -86,8 +83,10 @@ export function ProductBrowser({
   category: Category;
   products: Product[];
 }) {
-  const { language, categorySizes, setCategorySize, clearCategorySize } = useApp();
+  const { language, categorySizes, setCategorySize, clearCategorySize, addLine } = useApp();
   const t = copy[language];
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const categoryTitle = getLocalizedName(category.nameEn, category.nameKn, language);
   const categorySubtitle =
     language === "kn" ? category.nameEn : getLocalizedName(category.nameEn, category.nameKn, "kn");
@@ -106,6 +105,36 @@ export function ProductBrowser({
         );
       })
     : [];
+
+  const handleAddToCart = (product: Product) => {
+    const variant = product.variants.find(
+      (v) =>
+        v.active &&
+        v.size === selectedSize &&
+        availableStock(v.stockOnHand, v.reservedQuantity) > 0,
+    );
+    if (!variant) return;
+
+    addLine({
+      lineId: variant.id,
+      productId: product.id,
+      categoryId: category.id,
+      categoryNameEn: category.nameEn,
+      categoryNameKn: category.nameKn,
+      variantId: variant.id,
+      nameEn: product.nameEn,
+      nameKn: getLocalizedName(product.nameEn, product.nameKn, "kn"),
+      size: variant.size,
+      colorEn: variant.colorEn,
+      colorKn: getLocalizedName(variant.colorEn, variant.colorKn, "kn"),
+      unitPricePaise: product.pricePaise,
+      imageUrl: product.imageUrl,
+      quantity: 1,
+    });
+
+    clearCategorySize(category.slug);
+    setToastMessage(t.addedToCartChooseNext);
+  };
 
   return (
     <div className="customer-shell">
@@ -147,12 +176,37 @@ export function ProductBrowser({
           </div>
         </div>
 
+        {/* Toast Notification when product was added and user is reprompted for size */}
+        {toastMessage && (
+          <div
+            style={{
+              margin: "0 0 16px",
+              background: "linear-gradient(135deg, #15803d 0%, #166534 100%)",
+              color: "#ffffff",
+              borderRadius: 16,
+              padding: "12px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              boxShadow: "0 4px 14px rgba(21, 128, 61, 0.25)",
+              fontWeight: 800,
+              fontSize: "0.92rem",
+            }}
+          >
+            <Sparkles size={20} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{toastMessage}</span>
+          </div>
+        )}
+
         {/* STEP 1: SIZE GATE (No products or details shown until size is chosen) */}
         {!selectedSize ? (
           <SizeSelectorGate
             category={category}
             products={products}
-            onSelectSize={(size) => setCategorySize(category.slug, size)}
+            onSelectSize={(size) => {
+              setToastMessage(null);
+              setCategorySize(category.slug, size);
+            }}
           />
         ) : (
           /* STEP 2: SIZE SELECTED - SHOW FILTERED PRODUCTS WITH SIZE SWITCHER */
@@ -162,15 +216,14 @@ export function ProductBrowser({
               <div className="active-size-info">
                 <span className="active-size-label">{t.browsingSize}:</span>
                 <span className="active-size-badge">{selectedSize}</span>
-                <span className="active-size-count">
-                  ({sizeFilteredProducts.length}{" "}
-                  {language === "kn" ? "ವಿನ್ಯಾಸಗಳು" : sizeFilteredProducts.length === 1 ? "design" : "designs"})
-                </span>
               </div>
               <button
                 type="button"
                 className="change-size-btn"
-                onClick={() => clearCategorySize(category.slug)}
+                onClick={() => {
+                  setToastMessage(null);
+                  clearCategorySize(category.slug);
+                }}
               >
                 <RefreshCw size={14} />
                 <span>{t.changeSize}</span>
@@ -186,6 +239,7 @@ export function ProductBrowser({
                     category={category}
                     selectedSize={selectedSize}
                     eager={index < 4}
+                    onAddToCart={handleAddToCart}
                   />
                 ))}
               </div>

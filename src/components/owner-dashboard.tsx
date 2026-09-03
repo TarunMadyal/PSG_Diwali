@@ -712,7 +712,14 @@ export function OwnerDashboard() {
             .filter((orig) => editOrderItems.some((e) => e.id === orig.id)),
           totalPaise: finalTotalPaise,
         };
-        setOrders(orders.map((o) => (o.id === editingOrder.id ? updated : o)));
+        setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updated : o)));
+        try {
+          const stored = JSON.parse(localStorage.getItem("psg-demo-orders") ?? "[]") as Order[];
+          localStorage.setItem(
+            "psg-demo-orders",
+            JSON.stringify(stored.map((o) => (o.id === editingOrder.id ? updated : o))),
+          );
+        } catch {}
         setBannerMessage({ text: `Order #${editingOrder.token} updated!`, type: "success" });
         setEditingOrder(null);
       } else {
@@ -728,7 +735,7 @@ export function OwnerDashboard() {
         });
         if (!res.ok) throw new Error((await res.json()).error ?? "Failed to update order");
         const updatedOrder: Order = await res.json();
-        setOrders(orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
+        setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
         setBannerMessage({ text: `Order #${editingOrder.token} updated successfully!`, type: "success" });
         setEditingOrder(null);
       }

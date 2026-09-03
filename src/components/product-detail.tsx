@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Check, Minus, Plus, ShoppingBag, Sparkles } from "lucide-react";
+import { ArrowLeft, Minus, Plus, ShoppingBag, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { availableStock } from "@/lib/domain";
 import { money } from "@/lib/format";
@@ -11,33 +11,6 @@ import type { Category, Product, Variant } from "@/lib/types";
 import { useApp } from "./app-providers";
 import { CartFab } from "./cart-fab";
 import { CustomerHeader } from "./customer-header";
-
-// Color swatches mapping for visual richness
-const COLOR_HEX: Record<string, string> = {
-  navy: "#1a2e4c",
-  maroon: "#6b1420",
-  black: "#202020",
-  olive: "#485227",
-  white: "#f8f8f8",
-  blue: "#1d4ed8",
-  red: "#b91c1c",
-  green: "#15803d",
-  yellow: "#eab308",
-  brown: "#78350f",
-  grey: "#64748b",
-  gray: "#64748b",
-  orange: "#ea580c",
-  pink: "#db2777",
-  purple: "#7e22ce",
-  beige: "#d4b996",
-  standard: "#8f1d2c",
-};
-
-function getColorHex(colorName?: string): string {
-  if (!colorName) return "#8f1d2c";
-  const key = colorName.toLowerCase().trim();
-  return COLOR_HEX[key] || "#8f1d2c";
-}
 
 export function ProductDetail({ category, product }: { category: Category; product: Product }) {
   const { language, addLine, categorySizes, setCategorySize, clearCategorySize } = useApp();

@@ -24,8 +24,6 @@ export function SizeSelectorGate({
   const { language } = useApp();
   const t = copy[language];
   const categoryTitle = getLocalizedName(category.nameEn, category.nameKn, language);
-  const categorySubtitle =
-    language === "kn" ? category.nameEn : getLocalizedName(category.nameEn, category.nameKn, "kn");
 
   // Calculate distinct available sizes and how many designs have stock for each size
   const sizeOptions = useMemo<SizeOption[]>(() => {

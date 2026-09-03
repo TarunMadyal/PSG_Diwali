@@ -16,7 +16,6 @@ import type { Order } from "@/lib/types";
 import { useApp } from "./app-providers";
 import { BrandLogo } from "./brand-logo";
 import { CustomerHeader } from "./customer-header";
-import { UpiQrCode } from "./upi-qr-code";
 
 export function TrackingPage({ trackingKey }: { trackingKey: string }) {
   const { language } = useApp();
@@ -117,7 +116,6 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
     );
   }
 
-  const amountRupees = order.totalPaise / 100;
   const safeItems = order.items ?? [];
 
   return (
@@ -238,12 +236,58 @@ export function TrackingPage({ trackingKey }: { trackingKey: string }) {
             </table>
           </div>
 
-          {/* Dynamic UPI QR Code Section */}
-          <UpiQrCode
-            amountRupees={amountRupees}
-            token={order.token}
-            paymentStatus={order.paymentStatus}
-          />
+          {/* Payment Status / Pickup Payment Info */}
+          {order.paymentStatus === "paid" ? (
+            <div
+              style={{
+                marginTop: 18,
+                background: "linear-gradient(135deg, #edfbf3 0%, #d4f5e4 100%)",
+                border: "2px solid #15803d",
+                borderRadius: 16,
+                padding: "16px 18px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <CheckCircle2 size={26} color="#15803d" style={{ flexShrink: 0 }} />
+              <div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 900, color: "#15803d" }}>
+                  {language === "kn" ? "ಪಾವತಿ ಸ್ವೀಕರಿಸಲಾಗಿದೆ ✓" : "Payment Received ✓"}
+                </div>
+                <div style={{ fontSize: "0.85rem", color: "#166534", fontWeight: 600, marginTop: 2 }}>
+                  {language === "kn"
+                    ? "ಧನ್ಯವಾದಗಳು! ನಿಮ್ಮ ಆರ್ಡರ್ ಕೌಂಟರ್‌ನಲ್ಲಿ ಸಂಗ್ರಹಿಸಲು ಸಿದ್ಧವಾಗಿದೆ."
+                    : "Thank you! Your payment has been confirmed by the store."}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                marginTop: 18,
+                background: "#fff9ee",
+                border: "1.5px solid var(--gold)",
+                borderRadius: 16,
+                padding: "14px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>💳</span>
+              <div>
+                <div style={{ fontSize: "0.96rem", fontWeight: 900, color: "var(--wine)" }}>
+                  {language === "kn" ? "ಪಾವತಿ: ಕೌಂಟರ್‌ನಲ್ಲಿ ಪಾವತಿಸಿ" : "Payment: Pay at Pickup Counter"}
+                </div>
+                <div style={{ fontSize: "0.84rem", color: "var(--ink)", fontWeight: 600, marginTop: 2 }}>
+                  {language === "kn"
+                    ? "ಕೌಂಟರ್‌ನಲ್ಲಿ UPI QR ಸ್ಕ್ಯಾನ್ ಮಾಡಿ ಅಥವಾ ನಗದು ಮೂಲಕ ಪಾವತಿಸಿ."
+                    : "Pay via UPI (scan owner's QR) or cash when collecting your order."}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Simplified Order Status Message */}
           <div
